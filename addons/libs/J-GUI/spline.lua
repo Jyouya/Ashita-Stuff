@@ -1,4 +1,3 @@
-local matrix = require('matrix');
 local ffi = require('ffi');
 local C = ffi.C;
 local d3d = require('d3d8');
