@@ -10,6 +10,8 @@ local GUI = {
     Container = require('J-GUI/Container'),
     FilteredContainer = require('J-GUI/FilteredContainer'),
     ItemSelector = require('J-GUI/ItemSelector'),
+    Label = require('J-GUI/Label'),
+    Dropdown = require('J-GUI/Dropdown'),
     Button = require('J-GUI/Button'),
     ENUM = require('J-GUI/enum')
 };

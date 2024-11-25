@@ -20,6 +20,13 @@ ItemSelector._expanded = false;
 ItemSelector.animationTime = 0.1;
 ItemSelector.expandDirection = ENUM.DIRECTION.DOWN
 
+function ItemSelector:onMouseExit(e)
+    if (self.pressed) then
+        self.pressed = false;
+        self.ctx.blockNextMouseUp = true;
+    end
+end
+
 -- Default function to get value of mode-type variable
 function ItemSelector:getValue()
     if (not self.variable) then
@@ -239,10 +246,15 @@ function ItemSelector:onMouse(e)
         end),
         -- Left Button Down
         [513] = (function()
+            self.pressed = true;
             e.blocked = true;
         end),
         -- Left Button Up
         [514] = (function()
+            if (not self.pressed) then
+                return;
+            end
+            self.pressed = false;
             if (functions.testBounds(e.x, e.y, self:getBounds())) then
                 self._expanded = not self._expanded;
 

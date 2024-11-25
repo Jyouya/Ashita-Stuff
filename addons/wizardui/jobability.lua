@@ -19,7 +19,7 @@ local jobAbilities = require('jobability.jobs');
 local trackedAbilities = T {};
 local availableAbilities = T {};
 GUI.ctx.prerender:register(function()
-    local playerMp = AshitaCore:GetMemoryManager():GetParty():GetMemberMP(0);
+    -- local playerMp = AshitaCore:GetMemoryManager():GetParty():GetMemberMP(0);
     local player = AshitaCore:GetMemoryManager():GetPlayer();
 
     availableAbilities = T {};
@@ -43,6 +43,7 @@ GUI.ctx.prerender:register(function()
             if (abilityRecast == 0) then
                 res.available = 1;
             end
+
 
             availableAbilities[ability.resource.Name[1]] = res;
         end
@@ -153,13 +154,24 @@ local function abilityButtonFactory(ability)
     });
 end
 
-
-local function setup(s)
-    local jobAbilityUI = GUI.FilteredContainer:new({
+local function rowFactory() 
+    return GUI.FilteredContainer:new({
         layout = GUI.Container.LAYOUT.GRID,
         gridRows = 1,
         gridCols = GUI.Container.LAYOUT.AUTO,
         fillDirection = GUI.Container.LAYOUT.HORIZONTAL,
+        draggable = true,
+        gridGap = 4,
+        padding = { x = 2, y = 2 },
+    });
+end
+
+local function setup(s)
+    local jobAbilityUI = GUI.FilteredContainer:new({
+        layout = GUI.Container.LAYOUT.GRID,
+        gridRows = GUI.Container.LAYOUT.AUTO,
+        gridCols = 1,
+        fillDirection = GUI.Container.LAYOUT.VERTICAL,
         gridGap = 4,
         padding = { x = 0, y = 0 },
         draggable = true,
@@ -186,14 +198,48 @@ local function setup(s)
     local mainJA = jobAbilities[mainJob] or T {};
     local subJA = jobAbilities[subJob] or T {};
 
-    for _, ability in ipairs(mainJA) do
-        trackedAbilities:insert(ability);
-        jobAbilityUI:addView(abilityButtonFactory(ability));
+    local row = rowFactory()
+
+    if (mainJA.hasSubcategories) then
+        for _, subcategory in ipairs(mainJA) do
+            for _, ability in ipairs(subcategory) do
+                trackedAbilities:insert(ability);
+                row:addView(abilityButtonFactory(ability));
+            end
+            jobAbilityUI:addView(row);
+            row = rowFactory();
+        end
+    else
+        for _, ability in ipairs(mainJA) do
+            trackedAbilities:insert(ability);
+            row:addView(abilityButtonFactory(ability));
+        end
+        if (s.jobAbility.subJobNewRow) then
+            jobAbilityUI:addView(row);
+            row = rowFactory();
+        end
     end
 
-    for _, ability in ipairs(subJA) do
-        trackedAbilities:insert(ability);
-        jobAbilityUI:addView(abilityButtonFactory(ability));
+    if (subJA.hasSubcategories) then
+        if (#row.children) then
+            jobAbilityUI:addView(row);
+            row = rowFactory();
+        end
+
+        for _, subcategory in ipairs(subJA) do
+            for _, ability in ipairs(subcategory) do
+                trackedAbilities:insert(ability);
+                row:addView(abilityButtonFactory(ability));
+            end
+            jobAbilityUI:addView(row);
+            row = rowFactory();
+        end
+    else
+        for _, ability in ipairs(subJA) do
+            trackedAbilities:insert(ability);
+            row:addView(abilityButtonFactory(ability));
+        end
+        jobAbilityUI:addView(row);
     end
 end
 

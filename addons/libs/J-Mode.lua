@@ -390,4 +390,18 @@ _meta.M.__methods['f_has_value'] = function(m)
     end
 end
 
+_meta.M.__methods['map'] = function(m, fn)
+    local res = T {};
+    for i, v in ipairs(m) do
+        res[i] = fn(v);
+    end
+    return res;
+end
+
+_meta.M.__methods['equals'] = function(m, literal)
+    return function() 
+        return m.value == literal
+    end
+end
+
 return M

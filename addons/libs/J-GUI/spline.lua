@@ -3,6 +3,8 @@ local C = ffi.C;
 local d3d = require('d3d8');
 local d3d8dev = d3d.get_device();
 
+local GUI = require('J-GUI');
+
 local BezierSpline = T {};
 
 function BezierSpline:new(options)

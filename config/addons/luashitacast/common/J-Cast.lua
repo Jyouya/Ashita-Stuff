@@ -1,9 +1,10 @@
 local spellMap = gFunc.LoadFile('common/J-Map.lua');
 local tempPetMap = gFunc.LoadFile('common/J-PetMap.lua');
+local ws_skill = gFunc.LoadFile('common/WS-Map');
 local petMap = {};
 for k, v in pairs(tempPetMap) do
     petMap[k] = v;
-    petMap[k..'\0'] = v;
+    petMap[k .. '\0'] = v;
 end
 
 require('sugar');
@@ -17,7 +18,6 @@ return function(settings)
 
     profile.OnUnload = function()
     end
-
 
     profile.commands = T {};
     profile.HandleCommand = function(args)
@@ -56,7 +56,7 @@ return function(settings)
         local caps = true;
         for i = 1, #string do
             local c = string:sub(i, i);
-            if (c == '_' or c == ' ' or c == ':') then
+            if (c == '_' or c == ' ' or c == ':' or c == '-') then
                 caps = true;
             elseif (c ~= '\'') then
                 if (caps) then
@@ -171,9 +171,24 @@ return function(settings)
         end
     end
 
+    local function enrichAction(action)
+        if (not action) then
+            return;
+        end
+
+        if (not action.Target) then
+            action.Target = gData.GetActionTarget();
+        end
+
+        if (not action.Player) then
+            action.Player = gData.GetPlayer();
+        end
+    end
+
     local function getSet(base, isPetAction)
         local breadcrumbs = T { base };
         local action = isPetAction and gData.GetPetAction() or gData.GetAction();
+        enrichAction(action);
 
         local category;
 
@@ -181,7 +196,10 @@ return function(settings)
             action.Map = (isPetAction and petMap or spellMap)[action.Name];
             local name = pascalCase(action.Name);
             local type = pascalCase(action.Type);
-            local skill = pascalCase(action.Skill);
+            -- is name even nullable?
+            local skill = name and pascalCase(ws_skill[name]) or nil;
+
+            -- print(string.format("%s, %s, %s", name, type, skill));
 
             if (sets:hasSet(breadcrumbs, action.Name)) then
                 breadcrumbs:insert(action.Name);
@@ -260,6 +278,7 @@ return function(settings)
             for _, rule in ipairs(settings.Rules[base]) do
                 if rule.test(action) then
                     local key = type(rule.key) == 'function' and rule.key(action) or rule.key;
+
                     if (sets:hasSet(breadcrumbs, key)) then
                         breadcrumbs:insert(key);
                     end
@@ -274,7 +293,7 @@ return function(settings)
         -- Do swaps
         if (equipSet.swaps) then
             for _, swap in ipairs(equipSet.swaps) do
-                if (swap.test(action)) then
+                if (swap.test(action, finalSet)) then
                     finalSet = syncCombine(finalSet, swap);
                 end
             end
@@ -315,6 +334,8 @@ return function(settings)
         return finalSet;
     end
 
+    profile.getSet = getSet;
+
     profile.HandleDefault = function()
         local player = gData.GetPlayer();
         local petAction = gData.GetPetAction();
@@ -347,7 +368,7 @@ return function(settings)
         local castTime = set and set.CastTime or gData.GetAction().CastTime;
 
         local castDelay = ((castTime * (1 - settings.fastcast)) / 1000) - settings.minimumBuffer;
-        if (castDelay >= settings.packetDelay) then
+        if (settings.useInterimMidcast and castDelay >= settings.packetDelay) then
             gFunc.SetMidDelay(castDelay);
             interimEquip(getSet('SIRD'));
         end
