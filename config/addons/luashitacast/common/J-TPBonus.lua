@@ -3,7 +3,7 @@ local encoding = require('encoding');
 local ws_skill = require('common.WS-Map');
 local profileSettings;
 
-local _, subJobChange = require('common.events.jobChange');
+local subJobChange = require('events.jobChange').onSubJobChange;
 
 local function S(t) 
     local res = T { }
@@ -30,8 +30,8 @@ local magian_weapons = S {
 
 local warcry_source = 0
 action:register(function(data_raw, unpackAction)
-    local category = ashita.bits.unpack_be(data_raw, 0, 46, 4);
-    local param = ashita.bits.unpack_be(data_raw, 0, 50, 16);
+    local category = ashita.bits.unpack_be(data_raw, 0, 82, 4);
+    local param = ashita.bits.unpack_be(data_raw, 0, 86, 16);
 
     if (category == 6 and param == 32) then
         local actionPacket = unpackAction();

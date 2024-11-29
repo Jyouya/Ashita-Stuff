@@ -153,6 +153,10 @@ ashita.events.register('key', 'key_shift_callback_ctx', function(e)
     -- Key: VK_SHIFT
     if (e.wparam == 0x10) then
         ctx._drag.shiftDown = not (bit.band(e.lparam, bit.lshift(0x8000, 0x10)) == bit.lshift(0x8000, 0x10));
+        
+        if (not ctx._drag.shiftDown) then
+            ctx._drag.isDragging = false;
+        end
         return;
     end
 end);
@@ -163,9 +167,10 @@ ashita.events.register('d3d_present', 'present_cb', function()
     if (ctx.sprite == nil) then return; end
     -- Insertion sort.  Should be fast.
     ctx.children = functions.zSort(ctx.children);
-
+    
     -- print('before');
     ctx.sprite:Begin();
+
     for _, view in ipairs(ctx.children) do
         view:draw();
     end

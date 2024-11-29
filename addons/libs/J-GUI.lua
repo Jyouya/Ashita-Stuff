@@ -13,6 +13,7 @@ local GUI = {
     Label = require('J-GUI/Label'),
     Dropdown = require('J-GUI/Dropdown'),
     Button = require('J-GUI/Button'),
+    ToggleButton = require('J-GUI/ToggleButton'),
     ENUM = require('J-GUI/enum')
 };
 

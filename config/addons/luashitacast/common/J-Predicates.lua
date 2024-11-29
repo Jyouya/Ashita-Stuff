@@ -11,19 +11,31 @@ function predicate_factory.always_true() return true; end
 function predicate_factory.always_false() return false; end
 
 function predicate_factory.distance_gt(dist)
-    return function(action) return action.Target.Distance > dist end
+    return function(action)
+        return action.Target.Distance +
+            AshitaCore:GetMemoryManager():GetEntity():GetModelSize(action.Target.Index) > dist
+    end
 end
 
 function predicate_factory.distance_gte(dist)
-    return function(action) return action.Target.Distance >= dist end
+    return function(action)
+        return action.Target.Distance +
+            AshitaCore:GetMemoryManager():GetEntity():GetModelSize(action.Target.Index) >= dist
+    end
 end
 
 function predicate_factory.distance_lt(dist)
-    return function(action) return action.Target.Distance < dist end
+    return function(action)
+        return action.Target.Distance +
+            AshitaCore:GetMemoryManager():GetEntity():GetModelSize(action.Target.Index) < dist
+    end
 end
 
 function predicate_factory.distance_lte(dist)
-    return function(action) return action.Target.Distance <= dist end
+    return function(action)
+        return action.Target.Distance +
+            AshitaCore:GetMemoryManager():GetEntity():GetModelSize(action.Target.Index) <= dist
+    end
 end
 
 do
@@ -131,12 +143,12 @@ function predicate_factory.buff_active(...)
         error('buff_active requires at least one buff name');
     elseif n == 1 then
         local buff = select(1, ...);
-        return function() return gData.GetBuffCount(buff); end
+        return function() return gData.GetBuffCount(buff) > 0; end
     else
         local buffs = { ... };
         return function()
             for _, buff in ipairs(buffs) do
-                if not gData.GetBuffCount(buff) then return false; end
+                if not gData.GetBuffCount(buff) > 0 then return false; end
             end
             return true;
         end

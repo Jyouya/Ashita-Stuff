@@ -157,6 +157,8 @@ function Container:addView(...)
         view:setCtx(self.ctx);
         self.children:insert(view);
     end
+
+    return self;
 end
 
 function Container:draw()

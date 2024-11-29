@@ -5,7 +5,7 @@ GUI.ctx.forceReload(); -- Required since user scripts are loaded AFTER addon has
 functions.addResourcePath(AshitaCore:GetInstallPath() .. 'config\\addons\\luashitacast\\assets\\');
 
 local settings = {
-    fastcast = 0.3,
+    fastcast = 0.8,
     minimumBuffer = 0.1,
     packetDelay = 0.25,
 };
@@ -197,7 +197,7 @@ do -- Sets
                     return settings.Sub.value == 'Mensch Strap +1'
                         and settings.Turtle.value == 'Max HP'
                 end,
-                back = 'Moonlight Cape'
+                Back = 'Moonlight Cape'
             }
         }
     };
@@ -278,7 +278,7 @@ do -- Sets
         Ear2 = 'Sherida Earring',
         Ring1 = 'Epona\'s Ring',
         Ring2 = 'Niqmaddu Ring',
-        back = gear.Ogma_Acc,
+        Back = gear.Ogma_Acc,
         swaps = {
             {
                 test = function() return settings.Engaged.value == 'Mid' end,
@@ -305,7 +305,7 @@ do -- Sets
         Ear2 = 'Sherida Earring',
         Ring1 = { Name = 'Moonlight Ring', Priority = 15 },
         Ring2 = 'Niqmaddu Ring',
-        back = gear.Ogma_Acc,
+        Back = gear.Ogma_Acc,
     };
 
     sets.Engaged_DD_DT = {
@@ -421,7 +421,7 @@ do -- Sets
         Ear2 = { Name = 'Odnowa Earring +1', Priority = 15 },
         Ring1 = { Name = 'Defending Ring', Priority = 0 },
         Ring2 = { Name = 'Gelatinous Ring +1', Priority = 15 },
-        back = gear.Ogma_Enmity,
+        Back = gear.Ogma_Enmity,
         swaps = {
             {
                 test = willDropHP,
@@ -639,28 +639,28 @@ do -- Sets
         Back = gear.Ogma_Reso,
         swaps = {
             {
-                test = settings.Engaged.equals('Mid'),
+                test = settings.Engaged:equals('Mid'),
                 Legs = 'Meg. Chausses +2',
             },
             {
-                test = settings.Engaged.equals('High'),
+                test = settings.Engaged:equals('High'),
                 Ammo = 'Seeth. Bomblet',
             },
             {
-                test = settings.Weaponskill.equals('Balanced'),
+                test = settings.Weaponskill:equals('Balanced'),
                 Body = gear.Adhemar_Body_PathB,
                 Legs = 'Meg. Chausses +2',
             },
             {
-                test = settings.Weaponskill.equals('High'),
+                test = settings.Weaponskill:equals('High'),
                 Body = 'Meg. Cuirie +2',
                 Legs = 'Meg. Chausses +2',
                 Ring1 = { Name = 'Moonlight Ring', Priority = 15 },
             },
             {
                 test = predicates.p_and(
-                    settings.Weaponskill.equals('Balanced'),
-                    settings.Engaged.equals('Mid')
+                    settings.Weaponskill:equals('Balanced'),
+                    settings.Engaged:equals('Mid')
                 ),
                 Body = gear.Adhemar_Body_PathB,
                 Legs = 'Meg. Chausses +2',
@@ -702,20 +702,20 @@ do -- Sets
         swaps = {
             {
                 test = predicates.p_and(
-                    settings.Weaponskill.equals('Damage'),
-                    settings.Engaged.equals('High')
+                    settings.Weaponskill:equals('Damage'),
+                    settings.Engaged:equals('High')
                 ),
                 Head = 'Runeist Bandeau +3',
                 Body = 'Meg. Cuirie +2'
             },
             {
-                test = settings.Weaponskill.equals('Balanced'),
+                test = settings.Weaponskill:equals('Balanced'),
                 Head = 'Lustratio Cap +1',
                 Neck = 'Caro Necklace',
                 Waist = 'Grunfeld Rope',
             },
             {
-                test = settings.Weaponskill.equals('Tanky'),
+                test = settings.Weaponskill:equals('Tanky'),
                 Head = 'Meghanada Visor +2',
                 Body = 'Futhark Coat +3',
                 Ring2 = 'Regal Ring',

@@ -1,3 +1,6 @@
+-- local jit = require('jit');
+-- jit.off();
+
 local spellMap = gFunc.LoadFile('common/J-Map.lua');
 local tempPetMap = gFunc.LoadFile('common/J-PetMap.lua');
 local ws_skill = gFunc.LoadFile('common/WS-Map');
@@ -76,8 +79,11 @@ return function(settings)
         for i = 2, len do
             res = res .. '_' .. breadcrumbs[i];
         end
-        for _, v in ipairs({ ... }) do
+        for i, v in ipairs({ ... }) do
             if v then
+                if (type(v) == 'table') then
+                    v = v.Name;
+                end
                 res = res .. '_' .. v;
             end
         end
@@ -154,6 +160,12 @@ return function(settings)
 
     function sets:hasSet(breadcrumbs, ...)
         local keystart = buildSetName(breadcrumbs, ...);
+
+        if type(keystart) == 'function' then
+            for i, v in ipairs({...}) do
+                print('i: '..tostring(i)..', v: ' .. v)
+            end
+        end
         for k, _ in pairs(self) do
             if (string.sub(k, 1, string.len(keystart)) == keystart) then
                 return true;
@@ -187,7 +199,7 @@ return function(settings)
 
     local function getSet(base, isPetAction)
         local breadcrumbs = T { base };
-        local action = isPetAction and gData.GetPetAction() or gData.GetAction();
+        local action = isPetAction and gData.GetPetAction() or gData.GetAction() or T {};
         enrichAction(action);
 
         local category;
@@ -197,7 +209,7 @@ return function(settings)
             local name = pascalCase(action.Name);
             local type = pascalCase(action.Type);
             -- is name even nullable?
-            local skill = name and pascalCase(ws_skill[name]) or nil;
+            local skill = name and pascalCase(action.Skill or ws_skill[name]) or nil;
 
             -- print(string.format("%s, %s, %s", name, type, skill));
 
@@ -276,10 +288,10 @@ return function(settings)
         -- Do user defined rules or whatever
         if (settings.Rules and settings.Rules[base]) then
             for _, rule in ipairs(settings.Rules[base]) do
-                if rule.test(action) then
-                    local key = type(rule.key) == 'function' and rule.key(action) or rule.key;
+                if rule.test(action, breadcrumbs) then
+                    local key = type(rule.key) == 'function' and rule.key(action, breadcrumbs) or rule.key;
 
-                    if (sets:hasSet(breadcrumbs, key)) then
+                    if (type(key) == 'string' and sets:hasSet(breadcrumbs, key)) then
                         breadcrumbs:insert(key);
                     end
                 end
@@ -288,11 +300,18 @@ return function(settings)
 
         if (not sets:match(breadcrumbs)) then return end -- No gear needs to be swapped
         local finalSet = sets:match(breadcrumbs);
-        local equipSet = copySet(finalSet);              -- Shallow copy the set, for some reason
+        finalSet = copySet(finalSet);                    -- Shallow copy the set, for some reason
+
+        if (settings.GlobalSwaps and settings.GlobalSwaps[base]) then
+            for _, rule in ipairs(settings.GlobalSwaps[base]) do
+                finalSet.swaps = finalSet.swaps or T {};
+                table.append(finalSet.swaps, rule);
+            end
+        end
 
         -- Do swaps
-        if (equipSet.swaps) then
-            for _, swap in ipairs(equipSet.swaps) do
+        if (finalSet.swaps) then
+            for _, swap in ipairs(finalSet.swaps) do
                 if (swap.test(action, finalSet)) then
                     finalSet = syncCombine(finalSet, swap);
                 end
@@ -323,7 +342,7 @@ return function(settings)
 
                 if (range and range ~= 'Auto') then
                     finalSet = setCombine(finalSet, { Range = range });
-                    local ammo = settings.Ammo.value;
+                    local ammo = settings.Ammo and settings.Ammo.value;
                     if (ammo and ammo ~= 'Auto') then
                         finalSet = setCombine(finalSet, { Ammo = ammo });
                     end

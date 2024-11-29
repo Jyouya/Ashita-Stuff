@@ -47,15 +47,19 @@ function ItemSelector:getOptions()
 end
 
 function ItemSelector:getTexture(value)
-    local tex = ItemSelector._texture[value];
+    local tex = self._texture[value];
     if (not tex) then
-        tex = ItemSelector:lookupTexture(value);
-        ItemSelector._texture[value] = tex;
+        tex = self:lookupTexture(value);
+        self._texture[value] = tex;
     end
     return tex;
 end
 
 function ItemSelector:lookupTexture(value)
+    if (type(value) == 'table') then
+        value = value.Name;
+    end
+
     local item = AshitaCore:GetResourceManager():GetItemByName(value, 0);
     -- for k, v in pairs(item) do print('k: '..k..', v: '..v); end
     if (item) then
