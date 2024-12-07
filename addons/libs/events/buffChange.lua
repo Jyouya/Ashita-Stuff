@@ -5,6 +5,7 @@ local zoneChange = require('events.zoneChange');
 local buffGain = event:new();
 local buffLoss = event:new();
 
+-- TODO: Initialize from memory
 local buffs = T {};
 
 local ignoreNext = false;
@@ -12,7 +13,7 @@ zoneChange:register(function()
     ignoreNext = true;
 end);
 
-ashita.events.register('packet_in', 'zoneChange_packet_in', function(e)
+ashita.events.register('packet_in', 'buffChange_packet_in', function(e)
     if (e.id ~= 0x063) then return; end
 
     -- Check the subtype

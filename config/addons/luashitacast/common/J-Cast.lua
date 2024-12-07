@@ -12,6 +12,32 @@ end
 
 require('sugar');
 
+local function isIncapacitated()
+    return gData.GetBuffCount(7) > 0
+        or gData.GetBuffCount(10) > 0
+        or gData.GetBuffCount(0) > 0
+        or gData.GetBuffCount(14) > 0
+        or gData.GetBuffCount(28) > 0
+        or gData.GetBuffCount(2) > 0;
+end
+
+local function cantCastSpells()
+    return isIncapacitated()
+        or gData.GetBuffCount(29) > 0
+        or gData.GetBuffCount(6) > 0;
+end
+
+local function cantUseAbilities()
+    return isIncapacitated()
+        or gData.GetBuffCount(16) > 0
+        or gData.GetBuffCount(261) > 0;
+end
+
+local function cantUseWeaponskills()
+    return gData.GetPlayer().TP < 1000
+        or cantUseAbilities();
+end
+
 return function(settings)
     local profile = {};
     local sets = {};
@@ -96,6 +122,9 @@ return function(settings)
             if (resource ~= nil) then
                 return (level >= resource.Level);
             end
+            if (item == 'Displaced') then
+                return true;
+            end
         elseif type(item) == 'table' then
             if type(item.Level) == 'number' then
                 return (level >= item.Level);
@@ -160,12 +189,6 @@ return function(settings)
 
     function sets:hasSet(breadcrumbs, ...)
         local keystart = buildSetName(breadcrumbs, ...);
-
-        if type(keystart) == 'function' then
-            for i, v in ipairs({...}) do
-                print('i: '..tostring(i)..', v: ' .. v)
-            end
-        end
         for k, _ in pairs(self) do
             if (string.sub(k, 1, string.len(keystart)) == keystart) then
                 return true;
@@ -175,7 +198,7 @@ return function(settings)
 
     function sets:match(breadcrumbs)
         local breadcrumbsCopy = { table.unpack(breadcrumbs) }
-        for _, _ in ipairs(breadcrumbsCopy) do
+        for i = 1, #breadcrumbsCopy do
             if (sets[buildSetName(breadcrumbsCopy)]) then
                 return sets[buildSetName(breadcrumbsCopy)];
             end
@@ -238,7 +261,9 @@ return function(settings)
         end
 
         local mainHand = settings.Main and settings.Main.value;
+        if (mainHand == 'Auto') then mainHand = nil; end
         local offHand = settings.Sub and settings.Sub.value;
+        if (offHand == 'Auto') then offHand = nil; end
         if (mainHand and sets:hasSet(breadcrumbs, mainHand)) then
             breadcrumbs:insert(mainHand);
 
@@ -253,11 +278,11 @@ return function(settings)
         end
 
         local aftermathLevel = 0;
-        if (gData.GetBuffCount('Aftermath: Lv.3')) then
+        if (gData.GetBuffCount('Aftermath: Lv.3') > 0) then
             aftermathLevel = 3;
-        elseif (gData.GetBuffCount('Aftermath: Lv.2')) then
+        elseif (gData.GetBuffCount('Aftermath: Lv.2') > 0) then
             aftermathLevel = 2;
-        elseif (gData.GetBuffCount('Aftermath: Lv.1') or gData.GetBuffCount('Aftermath')) then
+        elseif (gData.GetBuffCount('Aftermath: Lv.1') > 0 or gData.GetBuffCount('Aftermath') > 0) then
             aftermathLevel = 1;
         end
 
@@ -298,6 +323,7 @@ return function(settings)
             end
         end
 
+        -- print(buildSetName(breadcrumbs));
         if (not sets:match(breadcrumbs)) then return end -- No gear needs to be swapped
         local finalSet = sets:match(breadcrumbs);
         finalSet = copySet(finalSet);                    -- Shallow copy the set, for some reason
@@ -360,7 +386,7 @@ return function(settings)
         local petAction = gData.GetPetAction();
         local petSet = petAction and getSet('Pet', true);
 
-        if (player.Status == 'Engaged') then
+        if (player.Status == 'Engaged' and not isIncapacitated()) then
             equip(petSet or getSet('Engaged'));
         elseif (player.Status == 'Resting') then
             equip(petSet or getSet('Resting'));
@@ -370,6 +396,10 @@ return function(settings)
     end
 
     profile.HandleAbility = function() -- JA
+        if (cantUseAbilities()) then
+            gFunc.CancelAction();
+            return;
+        end
         equip(getSet('JA'));
     end
 
@@ -378,6 +408,10 @@ return function(settings)
     end
 
     profile.HandlePrecast = function()
+        if (cantCastSpells()) then
+            gFunc.CancelAction();
+            return;
+        end
         equip(getSet('Precast'));
     end
 
@@ -395,9 +429,13 @@ return function(settings)
         equip(set);
     end
 
-    -- TODO: Make test cases for preshot/midshot and test them
     profile.HandlePreshot = function()
-        equip(getSet('Preshot'));
+        if (isIncapacitated()) then
+            gFunc.CancelAction();
+            return;
+        end
+        local midshotAmmo = getSet('Midshot').Ammo;
+        equip(syncCombine(getSet('Preshot'), { Ammo = midshotAmmo }));
     end
 
     profile.HandleMidshot = function()
@@ -405,6 +443,11 @@ return function(settings)
     end
 
     profile.HandleWeaponskill = function()
+        -- TODO: Range check
+        if (cantUseWeaponskills()) then
+            gFunc.CancelAction();
+            return;
+        end
         equip(getSet('Weaponskill'));
     end
 

@@ -3,30 +3,28 @@ addon.author  = 'Jyouya';
 addon.version = '1.0';
 addon.desc    = 'An advanced auto-roller';
 
-
-
 require('table');
 local Q = require('Queue');
 local M = require('J-Mode');
 local GUI = require('J-GUI');
-local VStack = require('J-GUI.VStack');
-local encoding = require('encoding');
 local chat = require('chat');
 local getAbilityRecasts = require('getAbilityRecasts')
-local japanese = (AshitaCore:GetConfigurationManager():GetInt32('boot', 'ashita.language', 'ashita', 2) == 1);
 local buffLoss = require('events.buffChange').buffLoss;
+
+local functions = require('J-GUI/functions');
+functions.addResourcePath(addon.path .. '\\assets\\');
 
 local zoneChange = require('events.zoneChange');
 
 local libSettings = require('settings');
 
-local defaultSettings = T{
+local defaultSettings = T {
     x = 200,
     y = 200,
     rolls = {
         'Wizard\'s Roll',
         'Warlock\'s Roll',
-    } 
+    }
 };
 
 local settings = libSettings.load(defaultSettings);
@@ -96,8 +94,8 @@ ashita.events.register('load', 'jroller_gui_load', function()
             variable = enabled,
             activeColor = T { 0, 55, 255 },
             inactiveColor = T { 255, 0, 0 },
-            activeTextureFile = 'assets/On.png',
-            inactiveTextureFile = 'assets/Off.png'
+            activeTextureFile = 'On.png',
+            inactiveTextureFile = 'Off.png'
         }),
         GUI.Label:new({
             getValue = function()
@@ -152,11 +150,8 @@ local function hasBuff(matchBuff)
         for _, buff in pairs(buffs) do
             local buffString = AshitaCore:GetResourceManager():GetString("buffs.names", buff)
             if (buffString) then
-                buffString = encoding:ShiftJIS_To_UTF8(buffString:trimend('\x00'));
-                if (not japanese) then
-                    buffString = string.lower(buffString);
-                end
-
+                
+                buffString = string.lower(buffString);
                 if (buffString == matchText) then
                     return true;
                 end
@@ -180,7 +175,7 @@ local function isIncapacitated()
         or hasBuff(10)
         or hasBuff(0)
         or hasBuff(14)
-        or hasBuff(29)
+        or hasBuff(28)
         or hasBuff(2);
 end
 
@@ -283,6 +278,7 @@ local function snakeEye()
 end
 
 local function finishRoll()
+    print('Finished rolling: ' .. currentRoll);
     rollWindow = nil;
 end;
 
@@ -292,6 +288,9 @@ local function doubleUp()
             or (rollNum < 8)
             or (rollNum == 8 and current.unlucky < 8)
             or (rollNum == 8 and recasts[197] < rollWindow - os.time() - 5)
+            or (hasBuff('Snake Eye') and rollNum ~= current.lucky
+                and rollNum ~= 11
+                and rollNum ~= current.unlucky - 1)
         ) then
         rollQ:push(doubleUpFactory(current));
         return true;
@@ -342,7 +341,9 @@ local function doNext()
     end
 
     if (cd == 0) then
-        AshitaCore:GetChatManager():QueueCommand(-1, ('/ja "%s" <me>'):format(abilityName));
+        local command = ('/ja "%s" <me>'):format(abilityName);
+        print('command: ' .. command);
+        AshitaCore:GetChatManager():QueueCommand(-1, command);
         pending = true;
         timeout = os.time();
     elseif ((rollWindow and os.time() + cd > rollWindow)
@@ -367,7 +368,7 @@ local function mainLoop()
 
     local now = os.time();
 
-    if (now - globalCooldown < 1) then
+    if (now - globalCooldown < 1.5) then
         return;
     end
 
@@ -411,9 +412,9 @@ ashita.events.register('packet_in', 'roller_action_cb', function(e)
     -- Determine if action is rolling related
     local param = ashita.bits.unpack_be(e.data_raw, 0, 86, 16);
 
-    print('param: ' .. param)
-    print('pending param: ' .. rollQ:peek().param);
-    print('pending: ' .. (pending and 'true' or 'false'));
+    -- print('param: ' .. param)
+    -- print('pending param: ' .. rollQ:peek().param);
+    -- print('pending: ' .. (pending and 'true' or 'false'));
     ---@diagnostic disable-next-line: need-check-nil
     if (not rollsByParam[param]) then return; end
 

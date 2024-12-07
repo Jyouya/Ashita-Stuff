@@ -27,6 +27,7 @@ functions.resolvePath = function(path)
 
 
     for _, resourcePath in ipairs(functions._resourcePaths) do
+        -- TODO: Proper path join so no / edge cases
         local assetPath = resourcePath .. path;
         -- print(assetPath);
         if (ashita.fs.exists(assetPath)) then

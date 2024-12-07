@@ -59,19 +59,19 @@ local function etp_gt(tp, gear_fencer)
     local jp_tp_bonus = 0
     do
         local pPlayer = AshitaCore:GetMemoryManager():GetPlayer()
-    
+        
         local _mainJob = pPlayer:GetMainJob();
         local mainJob = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", _mainJob);
         if (type(mainJob) == 'string') then
             mainJob = encoding:ShiftJIS_To_UTF8(mainJob:trimend('\x00'));
         end
-    
+        
         local _subJob = pPlayer:GetSubJob();
         local subJob = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", _subJob);
         if (type(subJob) == 'string') then
             subJob = encoding:ShiftJIS_To_UTF8(subJob:trimend('\x00'));
         end
-    
+        
         if mainJob == 'WAR' then
             job_fencer = 5
             jp_tp_bonus = 230
@@ -93,17 +93,20 @@ local function etp_gt(tp, gear_fencer)
             jp_tp_bonus = 0
         end
     end
-
+    
     gear_fencer = gear_fencer or 0
-
+    
     return function(spell)
         local etp = AshitaCore:GetMemoryManager():GetParty():GetMemberTP(0);
         local player = AshitaCore:GetMemoryManager():GetPlayer();
         
         
         local main = profileSettings.Main and profileSettings.Main.value
+        if (type(main) == 'table') then main = main.Name; end
         local sub = profileSettings.Sub and profileSettings.Sub.value
+        if (type(sub) == 'table') then sub = sub.Name; end
         local range = profileSettings.Range and profileSettings.Range.value
+        if (type(range) == 'table') then range = range.Name; end
 
         if spell.skill == 'Marksmanship' or spell.skill == 'Archery' then
             if aeonic_weapons[range] then
@@ -135,6 +138,8 @@ local function etp_gt(tp, gear_fencer)
                 end
             end
         end
+
+
 
         local mainRes = main and AshitaCore:GetResourceManager():GetItemByName(main, 2);
         

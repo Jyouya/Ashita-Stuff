@@ -92,6 +92,7 @@ do
 
     function predicate_factory.hachirin(action)
         local bonus = hachirin_bonus_tier(action)
+
         return bonus >= 2 or (bonus > 0 and action.Target.Distance > 7)
     end
 
@@ -117,7 +118,23 @@ do
 end
 
 function predicate_factory.tp_gte(tp)
-    return function(action) return action.Player.TP >= tp end
+    return function(action) return action.Player.TP >= tp; end
+end
+
+function predicate_factory.tp_gt(tp)
+    return function(action) return action.Player.TP > tp; end
+end
+
+function predicate_factory.tp_lte(tp)
+    return function(action) return action.Player.TP <= tp; end
+end
+
+function predicate_factory.tp_lt(tp)
+    return function(action) return action.Player.TP < tp; end
+end
+
+function predicate_factory.status(status)
+    return function(action) return action.Player.Status == status; end
 end
 
 function predicate_factory.time_between(start_time, end_time)

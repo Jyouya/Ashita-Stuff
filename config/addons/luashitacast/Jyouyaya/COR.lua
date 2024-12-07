@@ -163,6 +163,7 @@ do
     settings.Rules = T {
         Engaged = T {},
         Idle = T {},
+        Midshot = T {},
     }
 
     settings.Rules.Engaged:append({
@@ -185,6 +186,12 @@ do
             end
         end
     });
+
+    settings.Rules.Midshot:append({
+        test = function() return true; end,
+        key = function() return settings.RangedAttackMode.value; end
+    });
+
 
     settings.Quickdraw1 = M {
         ['description'] = 'Primary Quickdraw Element',
@@ -559,7 +566,7 @@ do
         Ear1 = 'Moonshade Earring',
         Ear2 = 'Friomisi Earring',
         Ring1 = 'Dingir Ring',
-        Ring2 = 'Ilabrat Ring',  -- Empanada Ring
+        Ring2 = 'Ilabrat Ring', -- Empanada Ring
         Back = gear.Camulus_AeolianEdge
     };
 
@@ -626,6 +633,9 @@ do
         }
     };
 
+    sets.Midshot_Armageddon_Damage = sets.Midshot_Damage;
+    sets.Midshot_Armageddon_STP = sets.Midshot_STP;
+
     sets.Midshot_Armageddon_AM3 = {
         Ammo = 'Chrono Bullet',
         Head = 'Meghanada Visor +2',
@@ -634,7 +644,7 @@ do
         Legs = 'Darraigner\'s Brais',
         Feet = 'Oshosi Leggings +1',
         Neck = 'Iskur Gorget',
-        Waist = 'K. Kachina Belt +1',  -- Gerdr Belt +1
+        Waist = 'K. Kachina Belt +1', -- Gerdr Belt +1
         Ear1 = 'Odr Earring',
         Ear2 = 'Telos Earring',
         Ring1 = 'Mummu Ring',
@@ -692,9 +702,9 @@ do
     sets.Engaged_DW9 = setCombine(sets.Engaged, {
         -- Waist =  'Gerdr Belt +1',
         Ear1 = 'Suppanomimi',
-        Ear2 = 'Eabani Earring',  -- ! remove when we get Gerdr +1
+        Ear2 = 'Eabani Earring', -- ! remove when we get Gerdr +1
         swaps = {
-            {                     -- Accuracy swapping rule
+            {                    -- Accuracy swapping rule
                 test = function()
                     return settings.Accuracy.index > 1
                 end,
@@ -756,7 +766,6 @@ do
         local item = AshitaCore:GetResourceManager():GetItemByName(element .. ' Card', 0);
         -- for k, v in pairs(item) do print('k: '..k..', v: '..v); end
         if (item) then
-            print(item);
             return functions.loadItemTexture(item.Id);
         end
 
@@ -814,8 +823,8 @@ do
         gridGap = 8,
         padding = { x = 0, y = 0 },
         draggable = true,
-        _x = 1560,
-        _y = 350
+        _x = 1730,
+        _y = 95
     });
 
     GUI.ctx.addView(UI);
