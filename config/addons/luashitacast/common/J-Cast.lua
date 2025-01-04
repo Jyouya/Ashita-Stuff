@@ -1,6 +1,3 @@
--- local jit = require('jit');
--- jit.off();
-
 local spellMap = gFunc.LoadFile('common/J-Map.lua');
 local tempPetMap = gFunc.LoadFile('common/J-PetMap.lua');
 local ws_skill = gFunc.LoadFile('common/WS-Map');
@@ -85,8 +82,14 @@ return function(settings)
         local caps = true;
         for i = 1, #string do
             local c = string:sub(i, i);
-            if (c == '_' or c == ' ' or c == ':' or c == '-') then
+            if (c == '_'
+                    or c == ' '
+                    or c == ':'
+                    or c == '-'
+                    or c == '/') then
                 caps = true;
+            elseif (c == '+') then
+                res = res .. 'Plus';
             elseif (c ~= '\'') then
                 if (caps) then
                     c = c:upper();
@@ -139,14 +142,15 @@ return function(settings)
     end
 
     local function syncCombine(...)
-        local level = AshitaCore:GetMemoryManager():GetPlayer():GetMainJobLevel();
+        -- local level = AshitaCore:GetMemoryManager():GetPlayer():GetMainJobLevel();
 
         local res = T {};
         for _, set in ipairs({ ... }) do
             for k, v in pairs(set) do
-                if (type(v) ~= 'string' or EvaluateItem(v, level)) then
-                    res[k] = v;
-                end
+                res[k] = v;
+                -- if (type(v) ~= 'string' or EvaluateItem(v, level)) then
+                --     res[k] = v;
+                -- end
             end
         end
         return res;
@@ -264,15 +268,24 @@ return function(settings)
         if (mainHand == 'Auto') then mainHand = nil; end
         local offHand = settings.Sub and settings.Sub.value;
         if (offHand == 'Auto') then offHand = nil; end
-        if (mainHand and sets:hasSet(breadcrumbs, mainHand)) then
-            breadcrumbs:insert(mainHand);
 
-            if (offHand and sets:hasSet(breadcrumbs, offHand)) then
-                breadcrumbs:insert(offHand);
+
+        local mainName = settings.Main
+            and pascalCase(type(settings.Main.value) == 'table' and settings.Main.value.alias or settings.Main.value)
+
+        local subName = settings.Sub
+            and pascalCase(type(settings.Sub.value) == 'table' and settings.Sub.value.alias or settings.Sub.value)
+
+        if (mainName and sets:hasSet(breadcrumbs, mainName)) then
+            breadcrumbs:insert(mainName);
+
+            if (subName and sets:hasSet(breadcrumbs, subName)) then
+                breadcrumbs:insert(subName);
             end
         end
 
         local range = settings.Range and settings.Range.value;
+        if (range == 'Auto') then range = nil; end
         if (range and sets:hasSet(breadcrumbs, range)) then
             breadcrumbs:insert(range);
         end
@@ -316,8 +329,8 @@ return function(settings)
                 if rule.test(action, breadcrumbs) then
                     local key = type(rule.key) == 'function' and rule.key(action, breadcrumbs) or rule.key;
 
-                    if (type(key) == 'string' and sets:hasSet(breadcrumbs, key)) then
-                        breadcrumbs:insert(key);
+                    if (type(key) == 'string' and sets:hasSet(breadcrumbs, pascalCase(key))) then
+                        breadcrumbs:insert(pascalCase(key));
                     end
                 end
             end
@@ -344,7 +357,7 @@ return function(settings)
             end
         end
 
-        finalSet = levelSyncSet(finalSet);
+        -- finalSet = levelSyncSet(finalSet);
 
         -- If a set specifies that pet actions take precedence, see if we have pet gear to equipo
         if (finalSet.petPriority and gData.GetPetAction()) then
@@ -357,7 +370,7 @@ return function(settings)
 
         if (mainHand or range) then
             local swapManagedWeapons = finalSet.swapManagedWeapons;
-            if (not (swapManagedWeapons and swapManagedWeapons())) then
+            if (not (swapManagedWeapons and swapManagedWeapons(action))) then
                 if (mainHand) then
                     finalSet = setCombine(finalSet, { Main = mainHand });
                 end

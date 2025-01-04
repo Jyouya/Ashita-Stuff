@@ -12,6 +12,7 @@ local elemental = require('elemental');
 local enfeebling = require('enfeebling');
 local enhancing = require('enhancing');
 local selfBuffs = require('enhancing.selfBuffs');
+local selfTrackedBuffs = require('enhancing.selfTrackedBuffs')
 local healing = require('healing');
 local ninjutsu = require('ninjutsu');
 local divine = require('divine');
@@ -166,6 +167,12 @@ local default_settings = T {
             x = 400,
             y = 400
         },
+        selfEnhancing2 = T {
+            trackedBuffs = T {},
+            visible = true,
+            x = 400,
+            y = 400,
+        },
         jobAbility = T {
             visible = true,
             x = 100,
@@ -266,6 +273,7 @@ function setup(jobSettings)
     divine.setup(jobSettings);
     targetbar.setup(jobSettings);
     jobability.setup(jobSettings);
+    selfTrackedBuffs.setup(jobSettings);
 
     config.setup(jobSettings, updateSettings);
 end

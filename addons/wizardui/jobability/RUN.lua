@@ -44,7 +44,7 @@ local status = T {
     ['Gambit'] = 536,
     ['Rayke'] = 571,
     ['Swordplay'] = 532,
-    ['One for All'] = 538,
+    -- ['One for All'] = 538,
     ['Embolden'] = 534,
 }
 

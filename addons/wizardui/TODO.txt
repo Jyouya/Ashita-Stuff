@@ -1,0 +1,51 @@
+Enlight tracker
+
+Anon icon
+
+Make containers propogate mouse exit to children
+ -- Test case is checkboxes in buffmenuentry
+
+
+Blindna cast time
+
+FF14 target circles -- Need to solve zbuffer problem first
+
+Tool tips for status bar and target bar
+
+Overhead player markers (bundle with ground markers)
+
+Add job ability selector to config
+
+Add chainspell check to spell available and recast check
+
+make barspells overwrite barspells for debuff tracker
+
+extend party frame to alliance
+   Maybe have 2 extra frames for the alliance instead of extending?
+
+SONGCAST
+Use entity position for markers
+Fix issues with string detection
+Detect spell interruption
+
+Trigger mouseexit when view hides
+-- Need to also mouseenter if a new view appears under mouse.
+-- To do this, we need to create a lifecycle function for when a view appears and disappears
+
+Have monsters wake from sleep when taking damage debufftracker
+Rest button with tick tracker
+
+Skill chains
+Skill chain panel
+highlight open spells
+highlight potential spells
+
+When mousing over a skill, show skill name and cooldown
+
+
+Edge case where arc is projected wrong
+
+Edge case where you can uncheck buffmenuentry while minimized
+-- Unable to replicate
+
+Forward mouseups if not pressed on buttons

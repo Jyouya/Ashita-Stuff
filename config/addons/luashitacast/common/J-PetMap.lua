@@ -134,4 +134,16 @@ return {
     ['Pacifying Ruby'] = 'BloodPactWard',
     ['Soothing Current'] = 'BloodPactWard',
     ['Crystal Blessing'] = 'BloodPactWard',
+	
+	['Healing Breath'] = 'HealingBreath',
+	['Healing Breath II'] = 'HealingBreath',
+	['Healing Breath III'] = 'HealingBreath',
+	['Healing Breath IV'] = 'HealingBreath',
+	
+	['Flame Breath'] = 'ElementalBreath',
+	['Frost Breath'] = 'ElementalBreath',
+	['Sand Breath'] = 'ElementalBreath',
+	['Gust Breath'] = 'ElementalBreath',
+	['Hydro Breath'] = 'ElementalBreath',
+	['Lightning Breath'] = 'ElementalBreath',
 };

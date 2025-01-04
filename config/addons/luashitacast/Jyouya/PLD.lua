@@ -8,6 +8,54 @@ functions.addResourcePath(AshitaCore:GetInstallPath() .. 'config\\addons\\luashi
 
 local action = require('common.events.action');
 
+local slots = T {
+    Main = true,
+    Sub = true,
+    Range = true,
+    Ammo = true,
+    Head = true,
+    Neck = true,
+    Ear1 = true,
+    Ear2 = true,
+    Body = true,
+    Hands = true,
+    Ring1 = true,
+    Ring2 = true,
+    Back = true,
+    Waist = true,
+    Legs = true,
+    Feet = true
+}
+
+local function validateItem(item)
+    if type(item) == 'table' then
+        item = item.Name
+    end
+    if (item == 'displaced' or item == 'remove') then
+        return true
+    end
+
+    return item and AshitaCore:GetResourceManager():GetItemByName(item, 2);
+end
+
+local function validateSet(t)
+    for k, v in pairs(t) do
+        if (slots[k]) then
+            if (not validateItem(v)) then
+                if (type(v) == 'table') then
+                    print('table item:')
+                    for l, w in pairs(v) do
+                        print('k: ' .. tostring(l) .. ', v: ' .. tostring(w));
+                    end
+                else
+                    print(v);
+                end
+            end
+        elseif type(v) == 'table' then
+            validateSet(v);
+        end
+    end
+end
 
 local settings = {
     fastcast = 0,
@@ -27,6 +75,7 @@ settings.Main = M {
     description = 'Main Hand',
     'Burtgang',
     'Naegling',
+    'Sakpata\'s Sword',
     'Malignance Sword',
     'Malevolence',
     'Auto'
@@ -51,9 +100,10 @@ settings.Wizard = M(false);
 
 settings.CombatMode = M {
     description = 'Combat Mode',
-    'Default',
-    'Odyssey',
-    'Sortie',
+    'Balanced',
+    'Kite',
+    'Block',
+    'Meva',
     'DD'
 }
 
@@ -75,35 +125,65 @@ local defaultSwap = function()
     end
 end
 
-local mainSelector = GUI.ItemSelector:new({
-    color = T { 0, 0x66, 0xFF },
-    animated = true,
-    expandDirection = GUI.ENUM.DIRECTION.LEFT,
-});
+local function dropdownFactory(variable, label)
+    return GUI.Container:new({
+        layout = GUI.Container.LAYOUT.GRID,
+        gridRows = GUI.Container.LAYOUT.AUTO,
+        gridCols = 1,
+        fillDirection = GUI.Container.LAYOUT.VERTICAL,
+        gridGap = 2,
+        padding = { x = 0, y = 0 },
+        draggable = true,
+    }):addView(
+        GUI.Label:new({ value = label or variable.description }),
+        GUI.Dropdown:new({
+            color = T { 0xFF, 0x66, 0x33 },
+            animated = true,
+            expandDirection = GUI.ENUM.DIRECTION.DOWN,
+            _width = 130,
+            isFixedWidth = true,
+            variable = variable
+        })
+    );
+end
 
-local subSelector = GUI.ItemSelector:new({
-    color = T { 0, 0x66, 0xFF },
-    animated = true,
-    expandDirection = GUI.ENUM.DIRECTION.LEFT,
-});
+local function itemSelectorFactory(variable, texture)
+    return GUI.ItemSelector:new({
+        color = T { 0xFF, 0x66, 0x33 },
+        animated = true,
+        expandDirection = GUI.ENUM.DIRECTION.LEFT,
+        variable = variable,
+        lookupTexture = texture
+    });
+end
 
-local lacUI = GUI.Container:new({
+GUI.ctx.addView(GUI.Container:new({
     layout = GUI.Container.LAYOUT.GRID,
     gridRows = GUI.Container.LAYOUT.AUTO,
-    gridCols = 2,
+    gridCols = 1,
     fillDirection = GUI.Container.LAYOUT.VERTICAL,
     gridGap = 4,
     padding = { x = 2, y = 2 },
     draggable = true,
     _x = 1560,
     _y = 350
-});
-GUI.ctx.addView(lacUI);
-
-lacUI:addView(mainSelector, subSelector);
-
-mainSelector.variable = settings.Main;
-subSelector.variable = settings.Sub;
+}):addView(
+    GUI.Container:new({
+        layout = GUI.Container.LAYOUT.GRID,
+        gridRows = GUI.Container.LAYOUT.AUTO,
+        gridCols = 2,
+        fillDirection = GUI.Container.LAYOUT.VERTICAL,
+        gridGap = 4,
+        padding = { x = 2, y = 2 },
+        draggable = true,
+        _x = 1560,
+        _y = 350
+    }):addView(
+        itemSelectorFactory(settings.Main),
+        itemSelectorFactory(settings.Sub)
+    ),
+    dropdownFactory(settings.CombatMode)
+))
 
 local function itemType(item)
     item = AshitaCore:GetResourceManager():GetItemByName(item, 0);
@@ -124,16 +204,16 @@ local prevSub = T {
 };
 
 local function packSub()
-    if (settings.Main.value == 'Auto') then
-        settings.Sub:options();
-    end
+    -- if (settings.Main.value == 'Auto') then
+    --     settings.Sub:options();
+    -- end
 
     local finalSubs
     local subJob = gData.GetPlayer().SubJob;
     local canDW = subJob == 'NIN' or subJob == 'DNC'
 
     finalSubs = T {};
-    local mainType = itemType(settings.Main.value);
+    local mainType = itemType(settings.Main.value) or '1h';
     for _, item in ipairs(subs) do
         local subType = itemType(item);
 
@@ -146,25 +226,26 @@ local function packSub()
             end
         end
     end
-    settings.Sub:options(finalSubs:unpack());
-    if (#finalSubs == 0) then
-        subSelector.hidden = true;
-    else
-        subSelector.hidden = false;
-    end
 
-    if (prevSub[settings.Main.value]) then
-        settings.Sub:set(prevSub[settings.Main.value]);
+    prevSub[mainType] = settings.Sub.value;
+
+
+    settings.Sub:options(finalSubs:unpack());
+    -- if (#finalSubs == 0) then
+    --     subSelector.hidden = true;
+    -- else
+    --     subSelector.hidden = false;
+    -- end
+
+    if (prevSub[mainType]) then
+        settings.Sub:set(prevSub[mainType]);
     end
 end
 
 packSub();
-prevSub[settings.Main.value] = settings.Sub.value;
+prevSub[itemType(settings.Main.value) or '1h'] = settings.Sub.value;
 
 settings.Main.on_change:register(packSub);
-settings.Sub.on_change:register(function()
-    prevSub[settings.Main.value] = settings.Sub.value;
-end);
 
 local hostileActions = T {};
 do
@@ -210,30 +291,6 @@ do
     end
 end
 
-local function GetIndexFromId(id)
-    local entMgr = AshitaCore:GetMemoryManager():GetEntity();
-
-    --Shortcut for monsters/static npcs..
-    if (bit.band(id, 0x1000000) ~= 0) then
-        local index = bit.band(id, 0xFFF);
-        if (index >= 0x900) then
-            index = index - 0x100;
-        end
-
-        if (index < 0x900) and (entMgr:GetServerId(index) == id) then
-            return index;
-        end
-    end
-
-    for i = 1, 0x8FF do
-        if entMgr:GetServerId(i) == id then
-            return i;
-        end
-    end
-
-    return 0;
-end
-
 local function isMob(id)
     return bit.band(id, 0xFF000000) ~= 0;
 end
@@ -241,24 +298,24 @@ end
 local jse = T {
     af = T {
         Head = 'Rev. Coronet +1',
-        Body = 'Rev. Surcoat +2',
+        Body = 'Rev. Surcoat +3',
         Hands = 'Rev. Gauntlets +2',
         Legs = 'Rev. Breeches +2',
-        Feet = 'Rev. Leggings +2',
+        Feet = 'Rev. Leggings +3',
     },
     relic = T {
         Head = 'Cab. Coronet +1',
         Body = 'Cab. Surcoat +1',
-        Hands = 'Cab. Gauntlets +1',
+        Hands = 'Cab. Gauntlets +3',
         Legs = 'Cab. Breeches +1',
         Feet = 'Cab. Leggings +1',
     },
     empy = T {
-        Head = 'Chev. Armet +1',
-        Body = 'Chev. Cuirass +1',
+        Head = 'Chev. Armet +3',
+        Body = 'Chev. Cuirass +2',
         Hands = 'Chev. Gauntlets +1',
-        Legs = 'Chev. Cuisses +1',
-        Feet = 'Chev. Sabatons +1'
+        Legs = 'Chev. Cuisses +3',
+        Feet = 'Chev. Sabatons +2'
     }
 }
 local lastActive = 0; -- Last time player was in combat.
@@ -291,7 +348,7 @@ action:register(function(data_raw, unpackAction)
             if (target.Id == playerId) then
                 lastActive = os.clock();
 
-                combatTargets[target.Id] = lastActive;
+                combatTargets[actorId] = lastActive;
                 return;
             end
         end
@@ -302,7 +359,7 @@ local function enemyCount(enemies)
     return function()
         local count = 0;
         for id, active in pairs(combatTargets) do
-            if (os.clock() > active + 5) then
+            if (os.clock() > active + 10) then
                 combatTargets[id] = nil;
             else
                 count = count + 1;
@@ -314,156 +371,258 @@ local function enemyCount(enemies)
 end
 
 local function outOfCombat()
-    return os.clock() > lastActive + 5;
+    return os.clock() > lastActive + 7;
 end
-
-print(gear.Souveran_Legs_PathC)
 
 local outOfCombatIdle = p_and(
     outOfCombat,
     function() return gData.GetPlayer().Status == 'Idle' end
-)
+);
+
+local function partyMemberHpLt(n)
+    return function()
+        local partyMgr = AshitaCore:GetMemoryManager():GetParty()
+        local entityMgr = AshitaCore:GetMemoryManager():GetEntity()
+        for i = 0, 5 do
+            if (partyMgr:GetMemberIsActive(n) == 1
+                    and partyMgr:GetMemberHP(i) < n
+                    and entityMgr:GetDistance(partyMgr:GetMemberIndex(i)) < 625) then
+                return true
+            end
+        end
+    end
+end
+
+local direSituation = p_or(
+    partyMemberHpLt(1000),
+    predicates.hpp_lt(50),
+    predicates.buff_active('Paralysis')
+);
+
+local useSIRD = p_or(enemyCount(3), direSituation);
+
+
 
 sets.Phalanx_Received = T {
+    Main = 'Sakpata\'s Sword',
     Sub = 'Priwen',
     Hands = gear.Souveran_Hands_PathC, -- Path D
+    Legs = 'Sakpata\'s Cuisses',
     Feet = gear.Souveran_Feet_PathD,
     -- Back = 'Weard Mantle',
 
+    swapManagedWeapons = p_and(outOfCombat, settings.Main:equals('Auto'))
 }
 
 sets.Idle = {
+    Main = 'Burtgang',
+    -- Sub = 'Duban',
     Ammo = 'Staunch Tathlum +1',
-    Head = 'Hjarrandi Helm',
-    Body = gear.Souveran_Body_PathC, -- Path D for refresh
-    Hands = gear.Souveran_Hands_PathC,
-    Legs = gear.Souveran_Legs_PathC,
+    Head = { Name = jse.empy.Head, Priority = 15 },
+    Body = 'Sakpata\'s Plate',
+    Hands = table.merge(gear.Souveran_Hands_PathC, { Priority = 14 }),
+    Legs = { Name = jse.empy.Legs, Priority = 14 },
     Feet = jse.af.Feet,
-    Neck = 'Unmoving Collar +1',
+    Neck = { Name = 'Unmoving Collar +1', Priority = 15 },
     Waist = 'Creed Baudrier',
-    Ear1 = 'Tuisto Earring',
-    Ear2 = 'Odnowa Earring +1',
-    Ring1 = 'Gelatinous Ring +1',
-    Ring2 = 'Defending Ring',
+    Ear1 = { Name = 'Tuisto Earring', Priority = 15 },
+    Ear2 = { Name = 'Odnowa Earring +1', Priority = 15 },
+    Ring1 = { Name = 'Gelatinous Ring +1', Priority = 15 },
+    Ring2 = { Name = 'Defending Ring', Priority = 0 },
     Back = gear.Rudianos_Tank,
     swaps = {
         {
+            test = settings.CombatMode:equals('Balanced'),
+            Hands = 'Sakpata\'s Gauntlets'
+        },
+        {
             -- Idle Refresh gear
-            test = outOfCombatIdle,
+            test = p_and(outOfCombatIdle,
+                predicates.mpp_lt(60)),
             Head = 'Displaced',
             Body = 'Respite Cloak',
+        },
+        {
+            -- Idle Refresh gear
+            test = p_and(outOfCombatIdle,
+                predicates.mpp_lt(80)),
             Neck = 'Vim Torque +1',
-            Hands = 'Regal Gauntlets',
             Waist = 'Fucho-no-Obi',
+        },
+        {
+            -- Idle Refresh gear
+            test = p_and(outOfCombatIdle,
+                predicates.mpp_lt(90)),
+            Hands = 'Regal Gauntlets',
         },
         {
             -- Pro/shell gear
             test = p_and(outOfCombatIdle,
-                p_not(p_and(predicates.buff_active('Protect'),
-                    predicates.buff_active('Shell')))),
+                p_not(predicates.buff_active(40))), -- Protect
             Ring2 = 'Sheltered Ring'
         },
-        {
+        T {
             -- Phalanx gear
             test = p_and(outOfCombatIdle,
-                p_not(predicates.buff_active('Phalanx'))),
-            sets.Phalanx_Received:unpack()
-        },
+                p_not(predicates.buff_active(116))), -- Phalanx
+        }:merge(sets.Phalanx_Received),
         {
             -- Cover is active
-            test = function() return gData.GetBuffCount('Cover') > 0 end,
+            test = predicates.buff_active(114), -- Cover
             Head = jse.af.Head,
             Body = jse.relic.Body
-        },
-        -- {
-        --     test = function() return gData.GetBuffCount('Sleep') > 0 end,
-        --     Neck = 'Opo-opo Necklace'
-        -- }
+        }
     }
 };
 
 sets.Engaged = {
     Ammo = 'Staunch Tathlum +1',
-    Head = 'Hjarrandi Helm',
-    Body = gear.Souveran_Body_PathC,
-    Hands = gear.Souveran_Hands_PathD,
-    Legs = gear.Souveran_Legs_PathC,
+    Head = { Name = jse.empy.Head, Priority = 15 },
+    Body = 'Sakpata\'s Plate',
+    Hands = table.merge(gear.Souveran_Hands_PathC, { Priority = 14 }),
+    Legs = { Name = jse.empy.Legs, Priority = 14 },
     Feet = jse.af.Feet,
-    Neck = 'Unmoving Collar +1',
-    Waist = 'Sailfi Belt +1',
-    Ear1 = 'Tuisto Earring',
-    Ear2 = 'Odnowa Earring +1',
-    Ring1 = 'Gelatinous Ring +1',
-    Ring2 = 'Defending Ring',
+    Neck = { Name = 'Unmoving Collar +1', Priority = 15 },
+    Waist = 'Creed Baudrier',
+    Ear1 = { Name = 'Tuisto Earring', Priority = 15 },
+    Ear2 = { Name = 'Odnowa Earring +1', Priority = 15 },
+    Ring1 = { Name = 'Gelatinous Ring +1', Priority = 15 },
+    Ring2 = { Name = 'Defending Ring', Priority = 0 },
     Back = gear.Rudianos_Tank,
     swaps = {
         {
             test = function() return gData.GetBuffCount('Cover') > 0 end,
             Head = jse.af.Head,
+        },
+        {
+            test = settings.CombatMode:equals('DD'),
+            Ammo = 'Aurgelmir Orb +1',
+            Head = 'Flam. Zucchetto +2',
+            Body = 'Dagon Breast.',
+            Hands = 'Sakpata\'s Gauntlets',
+            Legs = 'Sulev. Cuisses +2',
+            Feet = 'Flam. Gambieras +2',
+            Neck = 'Lissome Necklace',
+            Waist = 'Sailfi Belt +1',
+            Ear1 = 'Dedition Earring',
+            Ear2 = 'Cessance Earring',
+            Ring1 = 'Moonlight Ring',
+            Ring2 = 'Moonlight Ring',
         }
     }
 };
 
+
 sets.Resting = sets.Idle;
 
 sets.Precast = {
+    Main = 'Sakpata\'s Sword',
     Ammo = 'Sapience Orb',
-    Head = gear.Carmine_Head_PathD, -- 14
-    Body = jse.af.Body,             -- 5
-    Hands = 'Leyline Gloves',       -- 8
-    Legs = 'Enif Cosciales',
-    Feet = gear.Carmine_Feet_PathD, -- 8
-    Ear1 = 'Enchntr. Earring +1',
-    Ear2 = 'Loquac. Earring',       -- 2
-    Ring1 = 'Kishar Ring',          -- 4
-    Ring2 = 'Prolix Ring',          -- 2
-    Neck = 'Baetyl Pendant',        -- 4
+    Head = gear.Carmine_Head_PathD,               -- 14
+    Body = { Name = jse.af.Body, Priority = 15 }, -- 5
+    Hands = 'Leyline Gloves',                     -- 8
+    -- Legs = 'Enif Cosciales',
+    Legs = jse.relic.Legs,
+    Feet = jse.empy.Feet,     -- 8
+    Ear1 = 'Tuisto Earring',
+    Ear2 = 'Loquac. Earring', -- 2
+    Ring1 = 'Moonlight Ring',
+    Ring2 = 'Kishar Ring',    -- 4
+    -- Ring2 = 'Prolix Ring',                        -- 2
+    Neck = 'Baetyl Pendant',  -- 4
+    Waist = 'Plat. Mog. Belt',
     Back = gear.Rudianos_FC_Midcast
 }
 
-sets.Midcast = {
-    Head = { 'Gallant Coronet', 'Irn.Msk. Armet' },
-    Body = { 'Gallant Surcoat', 'Parade Cuirass', 'Wonder Kaftan' },
-    Hands = 'Gallant Gauntlets',
-    Legs = 'Wonder Braccae',
-    Feet = 'Gallant Leggings',
-    Waist = 'Swift Belt',
-    Back = gear.Rudianos_FC_Midcast
-};
-
-sets.Midcast_Holy = setCombine(sets.Midcast, {
-    Main = 'Apollo\'s Staff',
-    Head = 'Gallant Coronet',
-    Body = { 'Gallant Surcoat', 'Wonder Kaftan' },
-    Hands = 'Devotee\'s Mitts',
-    Legs = 'Magic Cuisses',
-    Neck = 'Justice Badge',
-    Waist = 'Friar\'s Rope',
-    Ear1 = 'Moldavite Earring',
-    Ring1 = 'Saintly Ring',
-    Ring2 = 'Saintly Ring',
-    swapManagedWeapons = swapIfLowTP
-});
-
-sets.Midcast_Enlight = setCombine(sets.Midcast, {
-    Main = 'Neptune\'s Staff',
-    Body = 'Gallant Surcoat',
-    swapManagedWeapons = function()
-        return gData.GetPlayer().TP < 150;
-    end
+sets.Precast_Cure = setCombine(sets.Precast, {
+    swaps = {
+        {
+            test = function()
+                if settings.CombatMode.value == 'Kite' then
+                    for i = 1,16,1 do
+                        gEquip.UnequipSlot(i);
+                    end
+                end
+            end
+        }
+    }
 })
 
-sets.Midcast_BanishII = setCombine(sets.Midcast_Holy, {
-    swapManagedWeapons = defaultSwap
+sets.Midcast = {
+    Back = gear.Rudianos_FC_Midcast,
+    Ring1 = 'Gelatinous Ring +1',
+    Ring2 = 'Moonlight Ring',
+    Legs = 'Sakpata\'s Cuisses'
+};
+
+sets.Midcast_EnhancingMagic = setCombine(sets.Midcast, {
+    Sub = 'Ajax +1',
+    Hands = 'Regal Gauntlets',
+    Body = 'Shab. Cuirass +1',
+    Ring1 = 'Moonlight Ring',
+    Ring2 = 'Moonlight Ring',
 });
 
-sets.Midcast_Banish = setCombine(sets.Midcast_Holy, {
-    swapManagedWeapons = defaultSwap
-
+sets.Midcast_Stoneskin = setCombine(sets.Midcast_EnhancingMagic, {
+    Waist = 'Siegel Sash'
 });
 
+sets.Midcast_Aquaveil = setCombine(sets.Midcast_EnhancingMagic, {
+    Main = 'Nibiru Faussar',
+    Sub = 'Displaced',
+    swapManagedWeapons = p_and(
+        outOfCombat,
+        p_not(predicates.buff_active('Aftermath: Lv.3')),
+        predicates.tp_lt(1000)
+    )
+});
+
+sets.Midcast_Reprisal = {
+    Sub = 'Ajax +1',
+    Ammo = 'Sapience Orb',
+    Head = 'Loess Barbuta +1',
+    Body = 'Shab. Cuirass +1',
+    Hands = 'Regal Gauntlets',
+    Legs = gear.Souveran_Legs_PathC,
+    Feet = jse.empy.Feet,
+    Ear1 = 'Cryptic Earring',
+    Ear2 = 'Odnowa Earring +1',
+    Ring1 = 'Gelatinous Ring +1',
+    Ring2 = 'Eihwaz Ring',
+    Neck = 'Moonlight Necklace',
+    Waist = 'Creed Baudrier',
+    Back = gear.Rudianos_FC_Midcast,
+    swaps = {
+        {
+            test = useSIRD,
+            Head = gear.Souveran_Head_PathC,
+            -- Feet = gear.Odyssean_Feet_FC
+            Feet = 'Odyssean Greaves',
+            Waist = 'Audumbla Sash',
+            Ring2 = 'Defending Ring',
+            Legs = 'Founder\'s Hose'
+        }
+    }
+};
+
+sets.Midcast_Phalanx = setCombine(sets.Phalanx_Received, {
+    Ear1 = 'Mimir Earring',
+    Ear2 = 'Odnowa Earring +1',
+    Ring1 = 'Moonlight Ring',
+    Ring2 = 'Moonlight Ring',
+
+    swaps = {
+        {
+            test = useSIRD,
+            Ammo = 'Staunch Tathlum +1',
+            Legs = 'Founder\'s Hose',
+            -- Feet = gear.Odyssean_Feet_Phalanx
+        }
+    }
+})
 
 sets.Weaponskill = {
+    Ammo = 'Aurgelmir Orb +1',
     Head = 'Gallant Coronet',
     Body = 'Wonder Kaftan',
     Hands = 'Wonder Mitts',
@@ -477,6 +636,38 @@ sets.Weaponskill = {
     Ring2 = 'Courage Ring',
     Back = 'Mercen. Mantle'
 };
+
+sets.Weaponskill_SavageBlade = {
+    Ammo = 'Aurgelmir Orb +1',
+    Head = 'Sakpata\'s Helm',
+    Body = 'Sakpata\'s Plate',
+    Hands = 'Sakpata\'s Gauntlets',
+    Legs = 'Sakpata\'s Cuisses',
+    Feet = 'Sulev. Leggings +2',
+    Neck = 'Kgt. Beads +2',
+    Waist = 'Sailfi Belt +1',
+    Ear1 = 'Thrud Earring',
+    Ear2 = 'Moonshade Earring',
+    Ring1 = 'Epaminondas\'s Ring',
+    Ring2 = 'Ephramad\'s Ring',
+    Back = gear.Rudianos_STR_WSD
+}
+
+sets.Weaponskill_Atonement = {
+    Ammo = 'Sapience Orb',
+    Head = 'Loess Barbuta +1',
+    Body = gear.Souveran_Body_PathC,
+    Hands = gear.Souveran_Hands_PathC,
+    Legs = gear.Souveran_Legs_PathC,
+    Feet = gear.Eschite_Feet_PathA,
+    Ear1 = 'Moonshade Earring',
+    Ear2 = 'Cryptic Earring',
+    Ring1 = 'Eihwaz Ring',
+    Ring2 = 'Petrov Ring',
+    Neck = 'Moonlight Necklace',
+    Waist = 'Fotia Belt',
+    Back = gear.Rudianos_Tank,
+}
 
 -- Stack vit/mnd for duration
 -- sets.JA_Cover = setCombine(sets.Idle, {
@@ -504,8 +695,9 @@ sets.Enmity = {
     Waist = 'Creed Baudrier',
     Ear1 = 'Tuisto Earring',
     Ear2 = 'Odnowa Earring +1',
-    Ring1 = 'Eiwhaz Ring',
-    Ring2 = 'Petrov Ring'
+    Ring1 = 'Eihwaz Ring',
+    Ring2 = 'Petrov Ring',
+    Back = gear.Rudianos_Tank,
 };
 
 sets.SIRD = setCombine(sets.Enmity, {
@@ -513,7 +705,10 @@ sets.SIRD = setCombine(sets.Enmity, {
     Ammo = 'Staunch Tathlum +1',
     Waist = 'Audumbla Sash',
     Neck = 'Moonlight Necklace',
-})
+    Ear2 = 'Nourish. Earring +1',
+    Legs = 'Founder\'s Hose'
+});
+
 
 sets.Midcast = sets.Enmity;
 
@@ -522,57 +717,70 @@ sets.Midcast_Flash = {
     Sub = 'Srivatsa',
     Ammo = 'Sapience Orb',
     Head = gear.Carmine_Head_PathD,
-    Body = gear.Souveran_Body_PathC,
+    Body = jse.af.Body,
     Hands = gear.Souveran_Hands_PathC,
     Legs = gear.Souveran_Legs_PathC,
-    Feet = gear.Carmine_Feet_PathD,
+    Feet = jse.empy.Feet,
     Neck = 'Moonlight Necklace',
     Waist = 'Creed Baudrier',
     Ear1 = 'Tuisto Earring',
     Ear2 = 'Cryptic Earring',
-    Ring1 = 'Eiwhaz Ring',
+    Ring1 = 'Eihwaz Ring',
     Ring2 = 'Petrov Ring',
     Back = gear.Rudianos_Tank,
     swaps = {
         {
-            test = enemyCount(3),
+            test = useSIRD,
+            Head = gear.Souveran_Head_PathC,
             Ammo = 'Staunch Tathlum +1',
             Waist = 'Audumbla Sash',
+            Ear2 = 'Nourish. Earring +1',
+            Legs = 'Founder\'s Hose',
+            Feet = 'Odyssean Greaves',
             -- SIRD gear
         }
     }
-
+    
 };
 
 sets.Midcast_Cure = {
     Ammo = 'Egoist\'s Tathlum',
-    Head = 'Loess Barbuta +1',
+    Head = { Name = 'Loess Barbuta +1', Priority = 0 },
     Body = gear.Souveran_Body_PathC,
     Hands = 'Macabre Gaunt. +1',
-    Legs = gear.Souveran_Legs_PathC,
+    Legs = table.merge(gear.Souveran_Legs_PathC, { Priority = 15 }),
     Feet = jse.empy.Feet,
     Neck = 'Sacro Gorget',
     Waist = 'Creed Baudrier',
     Ear1 = 'Tuisto Earring',
     Ear2 = 'Cryptic Earring',
-    Ring1 = 'Eiwhaz Ring',
-    Ring2 = 'Gelatinous Ring +1',
+    Ring1 = { Name = 'Gelatinous Ring +1', Priority = 15 },
+    Ring2 = 'Eihwaz Ring',
     Back = gear.Rudianos_Cure,
     swaps = {
         {
-            test = enemyCount(3),
+            test = useSIRD,
+            Head = gear.Souveran_Head_PathC,
             Ammo = 'Staunch Tathlum +1',
             Waist = 'Audumbla Sash',
             Neck = 'Moonlight Necklace',
+            Ear2 = 'Nourish. Earring +1',
+            Legs = 'Founder\'s Hose',
+            Feet = 'Odyssean Greaves'
             -- SIRD gear
-
         }
     }
 };
 
-sets.Midcast_Jettatura = sets.Flash;
-sets.Midcast_SheepSong = sets.Flash;
-sets.Midcast_GeistWall = sets.Flash;
+sets.Midcast_Jettatura = sets.Midcast_Flash;
+sets.Midcast_SheepSong = sets.Midcast_Flash;
+sets.Midcast_GeistWall = sets.Midcast_Flash;
+sets.Midcast_Banishga = sets.Midcast_Flash;
+
+sets.Midcast_Cocoon = setCombine(sets.SIRD, {
+    Hands = 'Regal Gauntlets',
+    -- Legs = jse.relic.Legs
+});
 
 sets.JA_HolyCircle = setCombine(sets.Enmity, {
     Feet = jse.af.Feet,
@@ -588,10 +796,18 @@ sets.JA_Rampart = setCombine(sets.Enmity, {
 
 -- TODO: Macc set
 sets.JA_ShieldBash = setCombine(sets.Enmity, {
-    Hands = jse.relic.Hands
+    Hands = jse.relic.Hands,
+    Ring1 = 'Apeile Ring +1',
+    Ring2 = 'Apeile Ring',
 });
 
+sets.JA_Chivalry = setCombine(sets.Enmity, {
+    Hands = jse.relic.Hands
+})
+
 sets.JA_Invincible = setCombine(sets.Enmity, {
+    Ring1 = 'Apeile Ring +1',
+    Ring2 = 'Apeile Ring',
     Legs = jse.relic.Legs
 });
 
@@ -601,5 +817,6 @@ profile.Sets = sets;
 profile.Packer = {
 };
 
+validateSet(sets);
 
 return profile;

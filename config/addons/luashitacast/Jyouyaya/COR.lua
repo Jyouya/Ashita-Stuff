@@ -16,6 +16,7 @@ local gear = require('Jyouyaya-gear');
 local M = require('J-Mode');
 local setCombine = require('common.setCombine');
 local predicates = require('common.J-Predicates')(settings);
+local isTargetTagged = require('common.isTargetTagged');
 
 local onSubJobChange = require('events.jobChange').onSubJobChange;
 local onAction = require('events.action');
@@ -76,7 +77,7 @@ do
         'Anarchy +2'
     };
 
-    settings.Quickdraw = M {
+    settings.QuickDraw = M {
         description = 'Quick Draw Mode',
         'Damage',
         'STP',
@@ -127,8 +128,9 @@ do
 
     local itemIdMemo = setmetatable({}, {
         __index = function(t, k)
-            t[k] = AshitaCore:GetResourceManager():GetItemByName(k, 2);
-            return t[k];
+            local res = AshitaCore:GetResourceManager():GetItemByName(k, 2);
+            t[k] = res;
+            return res;
         end
     });
 
@@ -189,7 +191,10 @@ do
 
     settings.Rules.Midshot:append({
         test = function() return true; end,
-        key = function() return settings.RangedAttackMode.value; end
+        key = function()
+            print('in key');
+            return settings.RangedAttackMode.value;
+        end
     });
 
 
@@ -220,6 +225,10 @@ do
     settings.Quickdraw2:set('Dark');
 
     settings.TreasureHunter = M(true, 'Treasure Hunter')
+
+    settings.GlobalSwaps = T {}
+    settings.GlobalSwaps.Engaged = T {}
+    settings.GlobalSwaps.Midshot = T {}
 end
 
 sets.Idle = {
@@ -257,7 +266,7 @@ sets.JA_CorsairRoll = {
     range = 'Compensator',
     Head = 'Lanun Tricorne +3',
     Body = 'Malignance Tabard',
-    Hands = 'Chasseur\'s Gants +1',
+    Hands = 'Chasseur\'s Gants +3',
     Legs = 'Desultor Tassets',
     Feet = 'Malignance Boots',
     Neck = 'Regal Necklace',
@@ -285,13 +294,14 @@ sets.JA_BlitzersRoll = setCombine(sets.JA_CoursersRoll, {
     Head = 'Chasseur\'s Tricorne +1',
 });
 sets.JA_TacticiansRoll = setCombine(sets.JA_CorsairRoll, {
-    Body = 'Chasseur\'s Frac +1',
+    Body = 'Chasseur\'s Frac +2',
 });
 sets.JA_AlliesRoll = setCombine(sets.JA_CorsairRoll, {
-    Hands = 'Chasseur\'s Gants +1',
+    Hands = 'Chasseur\'s Gants +3',
 });
 
-sets.JA_CorsairShot_Damage = {
+sets.JA_QuickDraw_Damage = {
+    Ammo = 'Living Bullet',
     Head = gear.Herc_Head_Wildfire,
     Body = 'Lanun Frac +3',
     Hands = 'Carmine Fin. Ga. +1',
@@ -310,7 +320,7 @@ sets.JA_CorsairShot_Damage = {
     }
 };
 
-sets.JA_CorsairShot_STP = {
+sets.JA_QuickDraw_STP = {
     Ammo = 'Living Bullet',
     Head = 'Malignance Chapeau',
     Body = 'Malignance Tabard',
@@ -326,7 +336,7 @@ sets.JA_CorsairShot_STP = {
     Back = gear.Camulus_rSTP
 };
 
-sets.JA_CorsairShot_Accuracy = {
+sets.JA_QuickDraw_Accuracy = {
     Ammo = 'Devastating Bullet',
     Head = 'Malignance Chapeau',
     Body = 'Malignance Tabard',
@@ -342,8 +352,8 @@ sets.JA_CorsairShot_Accuracy = {
     Back = gear.Camulus_QuickdrawDamage
 };
 
-sets.JA_LightShot = sets.JA_CorsairShot_Accuracy;
-sets.JA_DarkShot = sets.JA_CorsairShot_Accuracy;
+sets.JA_LightShot = sets.JA_QuickDraw_Accuracy;
+sets.JA_DarkShot = sets.JA_QuickDraw_Accuracy;
 
 sets.Precast = {
     Head = gear.Carmine_Head_PathD,
@@ -415,15 +425,15 @@ do
         Ammo = 'Chrono Bullet',
         Head = 'Lanun Tricorne +3',
         Body = 'Laksa. Frac +3',
-        Hands = 'Meg. Gloves +2',
+        Hands = 'Chasseru\'s Gants +3',
         Legs = 'Meg. Chausses +2',
         Feet = 'Lanun Bottes +3',
         Neck = 'Fotia Gorget',
         Waist = 'Fotia Belt',
         Ear1 = 'Moonshade Earring',
         Ear2 = 'Ishvara Earring',
-        Ring1 = 'Dingir Ring',
-        Ring2 = 'Regal Ring',
+        Ring1 = 'Regal Ring',
+        Ring2 = 'Cornelia\'s Ring',
         Back = gear.Camulus_LastStand,
         swaps = {
             {
@@ -452,8 +462,8 @@ do
         Neck = 'Comm. Charm +2',
         Ear1 = 'Moonshade Earring',
         Ear2 = 'Friomisi Earring',
-        Ring1 = 'Dingir Ring',
-        Ring2 = 'Archon Ring',
+        Ring1 = 'Archon Ring',
+        Ring2 = 'Cornelia\'s Ring',
         Waist = 'Eschan Stone',
         Back = gear.Camulus_LeadenSalute,
         swaps = {
@@ -474,7 +484,7 @@ do
         Ear1 = 'Hecate\'s Earring',
         Ear2 = 'Friomisi Earring',
         Ring1 = 'Dingir Ring',
-        Ring2 = 'Regal Ring',
+        Ring2 = 'Cornelia\'s Ring',
         Waist = 'Eschan Stone',
         Back = gear.Camulus_LeadenSalute,
         swaps = {
@@ -494,7 +504,7 @@ do
         Ear1 = 'Moonshade Earring',
         Ear2 = 'Friomisi Earring',
         Ring1 = 'Dingir Ring',
-        Ring2 = 'Ilabrat Ring',
+        Ring2 = 'Cornelia\'s Ring', --'Ilabrat Ring',
         Waist = 'Fotia Belt',
         Back = gear.Camulus_LeadenSalute,
         swaps = {
@@ -506,7 +516,7 @@ do
     sets.Weaponskill_Evisceration = {
         Head = 'Adhemar Bonnet +1',
         Body = 'Abnoba Kaftan',
-        Hands = 'Mummu Wrists +2',
+        Hands = 'Chasseur\'s gants +3',
         Legs = 'Samnuha Tights',
         Feet = 'Mummu Gamash. +2',
         Neck = 'Fotia Gorget',
@@ -526,7 +536,7 @@ do
     sets.Weaponskill_SavageBlade = {
         Head = gear.Herc_Head_Savage,
         Body = 'Laksa. Frac +3',
-        Hands = 'Meg. Gloves +2',
+        Hands = 'Chasseur\'s Gants +3',
         Legs = gear.Herc_Legs_Savage,
         Feet = 'Lanun Bottes +3',
         Neck = 'Comm. Charm +2',
@@ -534,7 +544,7 @@ do
         Ear1 = 'Moonshade Earring',
         Ear2 = 'Ishvara Earring',
         Ring1 = 'Regal Ring',
-        Ring2 = 'Rufescent Ring',
+        Ring2 = 'Cornelia\'s Ring',
         Back = gear.Camulus_Savage,
         swaps = { { test = predicates.etp_gt(2800), Ear1 = 'Telos Earring' } }
     };
@@ -542,7 +552,7 @@ do
     sets.Weaponskill_Requiescat = {
         Head = 'Adhemar Bonnet +1',
         Body = 'Adhemar Jacket +1',
-        Hands = 'Meg. Gloves +2',
+        Hands = 'Chasseur\'s Gants +3',
         Legs = 'Meg. Chausses +2',
         Feet = gear.Herc_Feet_TA,
         Neck = 'Fotia Gorget',
@@ -566,7 +576,7 @@ do
         Ear1 = 'Moonshade Earring',
         Ear2 = 'Friomisi Earring',
         Ring1 = 'Dingir Ring',
-        Ring2 = 'Ilabrat Ring', -- Empanada Ring
+        Ring2 = 'Cornelia\'s Ring', -- Empanada Ring
         Back = gear.Camulus_AeolianEdge
     };
 
@@ -590,7 +600,7 @@ do
             {
                 test = predicates.buff_active('Triple Shot'),
                 Head = 'Oshosi Mask +1',
-                Body = 'Chasseur\'s Frac +1',
+                Body = 'Chasseur\'s Frac +2',
                 Hands = 'Lanun Gants +3',
                 Legs = 'Osh. Trousers +1',
                 Feet = 'Osh. Leggings +1'
@@ -625,7 +635,7 @@ do
             {
                 test = predicates.buff_active('Triple Shot'),
                 Head = 'Oshosi Mask +1',
-                Body = 'Chasseur\'s Frac +1',
+                Body = 'Chasseur\'s Frac +2',
                 Hands = 'Lanun Gants +3',
                 Legs = 'Osh. Trousers +1',
                 Feet = 'Osh. Leggings +1'
@@ -633,14 +643,20 @@ do
         }
     };
 
+
     sets.Midshot_Armageddon_Damage = sets.Midshot_Damage;
     sets.Midshot_Armageddon_STP = sets.Midshot_STP;
+    sets.Midshot_Armageddon_AM1_Damage = sets.Midshot_Armageddon_Damage
+    sets.Midshot_Armageddon_AM1_STP = sets.Midshot_Armageddon_STP
+    sets.Midshot_Armageddon_AM2_Damage = sets.Midshot_Armageddon_Damage
+    sets.Midshot_Armageddon_AM2_STP = sets.Midshot_Armageddon_STP
+
 
     sets.Midshot_Armageddon_AM3 = {
         Ammo = 'Chrono Bullet',
         Head = 'Meghanada Visor +2',
         Body = 'Meghanada Cuirie +2',
-        Hands = 'Mummu Wrists +2',
+        Hands = 'Chasseur\'s Gants +2',
         Legs = 'Darraigner\'s Brais',
         Feet = 'Oshosi Leggings +1',
         Neck = 'Iskur Gorget',
@@ -662,7 +678,7 @@ do
             {
                 test = predicates.buff_active('Triple Shot'),
                 Head = 'Oshosi Mask +1',
-                Body = 'Chasseur\'s Frac +1',
+                Body = 'Chasseur\'s Frac +2',
                 Hands = 'Lanun Gants +3',
                 Legs = 'Osh. Trousers +1',
                 Feet = 'Osh. Leggings +1'
@@ -709,12 +725,13 @@ do
                     return settings.Accuracy.index > 1
                 end,
                 Neck = "Combatant's Torque"
-            }, {
-            test = function()
-                return settings.Accuracy.index > 2
-            end,
-            Legs = "Malignance Tights"
-        }
+            },
+            {
+                test = function()
+                    return settings.Accuracy.index > 2
+                end,
+                Legs = "Malignance Tights"
+            }
         }
     });
 
@@ -759,6 +776,16 @@ do
         Legs = gear.Herc_Legs_TreasureHunter,
         Waist = "Chaac Belt"
     };
+
+    local thSwap = table.merge(sets.TreasureHunter, {
+        test = predicates.p_and(
+            settings.TreasureHunter:equals(true),
+            predicates.p_not(isTargetTagged)
+        )
+    });
+
+    settings.GlobalSwaps.Engaged:append(thSwap)
+    settings.GlobalSwaps.Midshot:append(thSwap)
 end
 
 do

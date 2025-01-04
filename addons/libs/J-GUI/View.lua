@@ -81,7 +81,7 @@ function View:onDragFinish()
 end
 
 function View:isDraggable(e)
-    return false;
+    return self.draggable or false;
 end
 
 function View:setCtx(ctx)

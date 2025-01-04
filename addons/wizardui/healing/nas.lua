@@ -65,7 +65,9 @@ local nas = T {
             'Magic Atk Down',
             'Helix',
             'Max TP Down',
-            'Lullaby'
+            'Lullaby',
+            'Defense Down',
+            'Magic Def. Down'
         }
     }
 };

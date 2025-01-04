@@ -31,7 +31,8 @@ local status = T {
 local target = T {
     ['Cover'] = '<stpc>',
     ['Intervene'] = '<t>',
-    ['Sepulcher'] = '<t>'
+    ['Sepulcher'] = '<t>',
+    ['Shield Bash'] = '<t>'
 };
 
 local abilityTable = T {};

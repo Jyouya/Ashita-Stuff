@@ -56,6 +56,8 @@ local debuffStrings = T {
     ["dex down"] = "DEX Down",
 };
 
+local newEnhancingEntry = T { "" };
+
 config.DrawWindow = function()
     if (showConfig[1]) then
         imgui.PushStyleColor(ImGuiCol_WindowBg, { 0, 0.06, .16, .9 });
@@ -111,6 +113,49 @@ config.DrawWindow = function()
                         end
                     end
                 end
+                imgui.EndChild();
+            end
+
+            if (imgui.CollapsingHeader("Self Enhancing Tracker")) then
+                imgui.BeginChild("SelfEnhancingTrackerSettings", { 0, 230 }, true);
+                if (imgui.Checkbox('Enabled', { jobSettings.selfEnhancing2.visible })) then
+                    jobSettings.selfEnhancing2.visible = not jobSettings.selfEnhancing2.visible;
+                    updateSettings();
+                end
+
+                local toDelete = nil;
+
+                for k, v in pairs(jobSettings.selfEnhancing2.trackedBuffs) do
+                    imgui.PushID(k);
+                    if (imgui.Checkbox(k, { v })) then
+                        jobSettings.selfEnhancing2.trackedBuffs[k] = not v;
+                        updateSettings();
+                    end
+
+                    imgui.SameLine();
+                    if (imgui.Button('-')) then
+                        toDelete = k;
+                    end
+                    imgui.PopID();
+                end
+
+                if (toDelete) then
+                    jobSettings.selfEnhancing2.trackedBuffs[toDelete] = nil;
+                    updateSettings();
+                end
+
+                imgui.Separator(); -- Separate the list from the add entry UI
+                imgui.InputText('##NewEntry', newEnhancingEntry, 256);
+                imgui.SameLine();
+                if (imgui.Button('+')) then
+                    local newEntry = newEnhancingEntry[1];
+                    if newEntry ~= '' and not jobSettings.selfEnhancing2.trackedBuffs[newEntry] then
+                        jobSettings.selfEnhancing2.trackedBuffs[newEntry] = true; -- Add new entry with default state
+                        newEnhancingEntry[1] = '';                                            -- Clear the text field
+                        updateSettings();
+                    end
+                end
+
                 imgui.EndChild();
             end
 

@@ -1,5 +1,5 @@
 local enhancingMagic = T {
-    ['Aurorastorm'] = { 'Aurorastorm II', 'Auororastorm' },
+    ['Aurorastorm'] = { 'Aurorastorm II', 'Aurorastorm' },
     ['Firestorm'] = { 'Firestorm II', 'Firestorm' },
     ['Flurry'] = { 'Flurry II', 'Flurry' },
     ['Hailstorm'] = { 'Hailstorm II', 'Hailstorm' },

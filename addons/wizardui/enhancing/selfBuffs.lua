@@ -17,6 +17,7 @@ local ROMAN_NUMERALS = require('elemental.shared').ROMAN_NUMERALS;
 
 local enhancingMagic = require('enhancing.enhancingMagic');
 local selfBuffCategories = require('enhancing.selfBuffCategories');
+local aliasStatus = require('enhancing.spellToStatus');
 
 local castHandler = require('tracker').castHandler;
 local party = require('tracker').party;
@@ -151,45 +152,7 @@ local function draw(status)
     end
 end
 
-local aliasStatus = T {
-    Baramnesra = 'Baramnesia',
-    Barpoisonra = 'Barpoison',
-    Barsleepra = 'Barsleep',
-    Barpetra = 'Barpetrify',
-    Barsilencera = 'Barsilence',
-    Barparalyzra = 'Barparalyze',
-    Barblindra = 'Barblind',
 
-    Barfira = 'Barfire',
-    Barwatera = 'Barwater',
-    Barthundra = 'Barthunder',
-    Barstonra = 'Barstone',
-    Baraera = 'Baraero',
-    Barblizzara = 'Barblizzard',
-
-    Protectra = 'Protect',
-    Shellra = 'Shell',
-
-    Adloquium = 'Regain',
-    Crusade = 'Enmity Boost',
-    Temper = 'Multi Strikes',
-
-    ['Boost-STR'] = 'STR Boost',
-    ['Boost-MND'] = 'MND Boost',
-    ['Boost-DEX'] = 'DEX Boost',
-    ['Boost-VIT'] = 'VIT Boost',
-    ['Boost-AGI'] = 'AGI Boost',
-    ['Boost-INT'] = 'INT Boost',
-    ['Boost-CHR'] = 'CHR Boost',
-
-    ['Gain-STR'] = 'STR Boost',
-    ['Gain-MND'] = 'MND Boost',
-    ['Gain-DEX'] = 'DEX Boost',
-    ['Gain-VIT'] = 'VIT Boost',
-    ['Gain-AGI'] = 'AGI Boost',
-    ['Gain-INT'] = 'INT Boost',
-    ['Gain-CHR'] = 'CHR Boost',
-};
 
 -- List of AoE spells that have single target versions
 local aoeSpells = T {};

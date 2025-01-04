@@ -47,12 +47,12 @@ local function setup(s)
     end
 
     -- Frazzle/Distract
-    -- if (canCastSpell('Frazzle')) then
-    --     row1:addView(combat.tieredEnfeeble('Frazzle', 3));
-    -- end
-    -- if (canCastSpell('Distract')) then
-    --     row1:addView(combat.tieredEnfeeble('Distract', 3));
-    -- end
+    if (canCastSpell('Frazzle')) then
+        row1:addView(combat.tieredEnfeeble('Frazzle', 3));
+    end
+    if (canCastSpell('Distract')) then
+        row1:addView(combat.tieredEnfeeble('Distract', 3));
+    end
 
     -- Other single target
     if (canCastSpell('Gravity')) then

@@ -6,9 +6,11 @@ local predicate_factory = {}
 --     return function() return false; end
 -- end
 
-function predicate_factory.always_true() return true; end
+local buffs = require('events.buffChange').buffs
 
-function predicate_factory.always_false() return false; end
+function predicate_factory.always() return true; end
+
+function predicate_factory.never() return false; end
 
 function predicate_factory.distance_gt(dist)
     return function(action)
@@ -160,7 +162,11 @@ function predicate_factory.buff_active(...)
         error('buff_active requires at least one buff name');
     elseif n == 1 then
         local buff = select(1, ...);
-        return function() return gData.GetBuffCount(buff) > 0; end
+        if (type(buff) == 'string') then
+            return function() return gData.GetBuffCount(buff) > 0; end
+        else
+            return function() return buffs[buff] end
+        end
     else
         local buffs = { ... };
         return function()

@@ -137,6 +137,8 @@ end
 local membersHasteSamba = T {};
 do
     local playerId;
+    playerId = AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(0);
+
     ashita.events.register('load', 'j-haste_player_id_cb', function()
         playerId = AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(0);
     end);
@@ -194,9 +196,9 @@ do
 
                 local meleeAttack = action.Targets[1].Actions[1];
 
-                if (meleeAttack.hasAdditionalEffect == 1
-                        and bit.band(meleeAttack.AdditionalEffect.Damage, 0x3F) == 23) then
+                if (meleeAttack.AdditionalEffect and bit.band(meleeAttack.AdditionalEffect.Damage, 0x3F) == 23) then
                     local update;
+
                     if (os.time() - hasteSambaTime >= 10) then
                         update = true;
                     end
@@ -226,6 +228,13 @@ do
         end
     end)
 end
+
+
+-- local GUI = require('J-GUI');
+-- ashita.events.register('d3d_present', 'haste_debug', function()
+--     GUI.text.write(200, 240, 1, "Job Haste: " .. tostring(getJaHaste()))
+--     GUI.text.write(200, 260, 1, "Magic Haste: " .. tostring(getMaHaste()))
+-- end)
 
 packetsIncoming[0x076] = function(e)
     for k = 0, 4 do
@@ -265,6 +274,8 @@ end);
 return setmetatable({}, {
     dwNeeded = { get = getDwNeeded },
     totalHaste = { get = getTotalHaste },
+    magicHaste = { get = getMaHaste },
+    jobHaste = { get = getJaHaste },
     gearHaste = { set = setGearHaste },
     onChange = hasteChange,
 

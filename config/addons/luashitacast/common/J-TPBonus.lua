@@ -82,7 +82,7 @@ local function etp_gt(tp, gear_fencer)
             job_fencer = 2
             jp_tp_bonus = 0
         elseif subJob == 'WAR' then
-            if (pPlayer:getSubJobLevel() >= 58) then
+            if (pPlayer:GetSubJobLevel() >= 58) then
                 job_fencer = 2
             else
                 job_fencer = 1

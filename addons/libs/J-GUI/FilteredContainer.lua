@@ -6,7 +6,7 @@ function FilteredContainer:filterChildren()
     local res = T {};
     for _, child in ipairs(self._children) do
         if ((not child.shouldDisplay) or child:shouldDisplay()) then
-            res:insert(child);
+            res:append(child);
         elseif (child._isHovered) then
             child:onMouseExit();
         end
@@ -23,7 +23,7 @@ function FilteredContainer:addView(...)
     for _, view in ipairs({ ... }) do
         view.parent = self;
         view:setCtx(self.ctx);
-        self._children:insert(view);
+        self._children:append(view);
     end
 end
 

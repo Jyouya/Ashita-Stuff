@@ -200,16 +200,17 @@ return {
         }
     },
 
-    Souveran_Head_PathD  = { Name = 'Souv. Schaller +1', AugPath = 'D' },
-    Souveran_Body_PathC  = { Name = 'Souv. Cuirass +1', AugPath = 'C' },
-    Souveran_Hands_PathC = { Name = 'Souv. Handsch. +1', AugPath = 'C' },
-    Souveran_Legs_PathC  = { Name = 'Souv. Diechlings +1', AugPath = 'C' },
+    Souveran_Head_PathD  = T { Name = 'Souv. Schaller +1', AugPath = 'D' },
+    Souveran_Head_PathC  = T { Name = 'Souv. Schaller +1', AugPath = 'C' },
+    Souveran_Body_PathC  = T { Name = 'Souv. Cuirass +1', AugPath = 'C' },
+    Souveran_Hands_PathC = T { Name = 'Souv. Handsch. +1', AugPath = 'C' },
+    Souveran_Legs_PathC  = T { Name = 'Souv. Diechlings +1', AugPath = 'C' },
 
-    MoonlightRing1       = { name = 'Moonlight Ring', bag = 'wardrobe2', priority = 15 },
-    MoonlightRing2       = { name = 'Moonlight Ring', bag = 'wardrobe3', priority = 15 },
+    MoonlightRing1       = { Name = 'Moonlight Ring', bag = 'wardrobe2', priority = 15 },
+    MoonlightRing2       = { Name = 'Moonlight Ring', bag = 'wardrobe3', priority = 15 },
 
     Malevolence1         = {
-        name = "Malevolence",
+        Name = "Malevolence",
         augments = {
             'INT+10', 'Mag. Acc.+10', '"Mag.Atk.Bns."+10', '"Fast Cast"+5'
         },
@@ -217,7 +218,7 @@ return {
         alias = 'Malevolence'
     },
     Malevolence2         = {
-        name = "Malevolence",
+        Name = "Malevolence",
         augments = {
             'INT+10', 'Mag. Acc.+10', '"Mag.Atk.Bns."+10', '"Fast Cast"+5'
         },
@@ -226,11 +227,11 @@ return {
     },
 
     MacheEarring1        = {
-        name = 'Mache Earring +1',
+        Name = 'Mache Earring +1',
         bag = 'wardrobe1',
     },
     MacheEarring2        = {
-        name = 'Mache Earring +1',
+        Name = 'Mache Earring +1',
         bag = 'wardrobe2',
     },
 
@@ -263,6 +264,6 @@ return {
     Carmine_Feet_PathD  = { Name = 'Carmine Greaves +1', AugPath = 'D' },
 
     Rudianos_FC_Midcast = { Name = 'Rudianos\'s Mantle', Augment = { [1] = 'Damage taken-5%', [2] = '"Fast Cast"+10', [3] = 'Mag. Evasion+30', [4] = 'HP+60', [5] = 'Evasion+20' } },
-    Rudianos_Tank = { Name = 'Rudianos\'s Mantle', Augment = { [1] = 'Damage taken-5%', [2] = 'Evasion+20', [3] = 'HP+60', [4] = 'Mag. Evasion+30', [5] = 'Enmity+10' } },
-    Rudianos_Cure = { Name = 'Rudianos\'s Mantle', Augment = { [1] = 'Phys. dmg. taken -10%', [2] = '"Cure" potency +10%', [3] = 'HP+60', [4] = 'Mag. Evasion+30', [5] = 'Evasion+20' } },
+    Rudianos_Tank       = { Name = 'Rudianos\'s Mantle', Augment = { [1] = 'Damage taken-5%', [2] = 'Evasion+20', [3] = 'HP+60', [4] = 'Mag. Evasion+30', [5] = 'Enmity+10' } },
+    Rudianos_Cure       = { Name = 'Rudianos\'s Mantle', Augment = { [1] = 'Phys. dmg. taken -10%', [2] = '"Cure" potency +10%', [3] = 'HP+60', [4] = 'Mag. Evasion+30', [5] = 'Evasion+20' } },
 }

@@ -1,9 +1,7 @@
 local Container = require('J-GUI/Container');
-local View = require('J-GUI/View');
 local CheckBox = require('J-GUI/CheckBox');
 local text = require('J-GUI/text');
 local functions = require('J-GUI/functions');
-local d3d = require('d3d8');
 local ffi = require('ffi');
 local M = require('J-Mode');
 

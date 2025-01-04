@@ -6,10 +6,10 @@ local function canCastSpell(spellName)
     local spellLevel = spell.LevelRequired[player:GetMainJob() + 1];
     local jobLevel;
 
-    if (spellName == 'Frazzle') then
-        print(spellLevel);
-    end
-    if (spellLevel == -1) then
+
+    if (spellLevel > 99) then
+        jobLevel = player:GetJobPointsSpent(player:GetMainJob());
+    elseif (spellLevel == -1) then
         spellLevel = spell.LevelRequired[player:GetSubJob() + 1];
         jobLevel = player:GetSubJobLevel();
     else

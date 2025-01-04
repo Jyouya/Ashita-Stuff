@@ -74,20 +74,18 @@ GUI.ctx.prerender:register(function()
 
     for i, data in ipairs(needsNa) do
         local entry
-        if (i > #menu.children) then
+        if (i > #menu._children) then
             entry = DebuffMenuEntry:new()
             menu:addView(entry);
         end
-        entry = entry or menu.children[i];
+        entry = entry or menu._children[i];
         local member = party[data.partyIndex];
 
         entry.getJobIconTexture = function()
             return getTexForJob(member.mainJob);
         end
 
-        entry.getStatusIconTexture = function()
-            return getTexForStatus(data.status)();
-        end
+        entry.getStatusIconTexture = getTexForStatus(data.status);
 
         entry.getColor = function()
             if (availableSpells[data.spellName].available == 1) then
@@ -129,9 +127,9 @@ GUI.ctx.prerender:register(function()
     -- print(#needsNa);
     -- print(#menu.children);
 
-    if (#menu.children > #needsNa) then
-        for i = #needsNa + 1, #menu.children do
-            menu.children[i].shouldDisplay = function()
+    if (#menu._children > #needsNa) then
+        for i = #needsNa + 1, #menu._children do
+            menu._children[i].shouldDisplay = function()
                 -- print('debug');
                 return false;
             end

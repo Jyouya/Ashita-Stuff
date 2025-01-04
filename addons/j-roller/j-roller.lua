@@ -141,6 +141,10 @@ local function actionComplete()
     end
 end
 
+local function message(text)
+    print(chat.header(addon.name):append(chat.message(text)));
+end
+
 -- ? Maybe strip this down, since it's only used to specifically check for
 -- ? Buffs in english
 local function hasBuff(matchBuff)
@@ -278,7 +282,7 @@ local function snakeEye()
 end
 
 local function finishRoll()
-    print('Finished rolling: ' .. currentRoll);
+    message('Finished rolling: ' .. currentRoll);
     rollWindow = nil;
 end;
 
@@ -337,12 +341,13 @@ local function doNext()
     local abilityName = rollQ:peek().en;
 
     if (abilityName == nil) then
-        print('Ability Name nil');
+        message('Ability Name nil');
+        return;
     end
 
     if (cd == 0) then
         local command = ('/ja "%s" <me>'):format(abilityName);
-        print('command: ' .. command);
+        message('command: ' .. command);
         AshitaCore:GetChatManager():QueueCommand(-1, command);
         pending = true;
         timeout = os.time();
@@ -418,9 +423,9 @@ ashita.events.register('packet_in', 'roller_action_cb', function(e)
     ---@diagnostic disable-next-line: need-check-nil
     if (not rollsByParam[param]) then return; end
 
-    if (pending and param == rollQ:peek().param) then
+    if (pending and rollQ:peek() and param == rollQ:peek().param) then
         -- If the action matches the top of the queue, action complete
-        print('action complete: ' .. rollQ:peek().en);
+        message('action complete: ' .. rollQ:peek().en);
         actionComplete();
     elseif (not rollQ:isEmpty()) then
         -- If the action does not match, cleare queue and restrategize
@@ -432,7 +437,7 @@ ashita.events.register('packet_in', 'roller_action_cb', function(e)
 
     -- Update roll number
     rollNum = ashita.bits.unpack_be(e.data_raw, 0, 213, 17);
-    print(rollNum);
+    message('Rolled: ' .. tostring(rollNum));
 
     -- Start over if we busted
     if (rollNum == 12) then -- Bust
@@ -444,10 +449,6 @@ end);
 
 local startCommands = T { 'start', 'go', 'on', 'enable' };
 local stopCommands = T { 'stop', 'quit', 'off', 'disable' };
-
-local function message(text)
-    print(chat.header(addon.name):append(chat.message(text)));
-end
 
 local function setRoll(slot, text)
     local name = (function(inputText)
