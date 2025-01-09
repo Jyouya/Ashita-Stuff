@@ -42,6 +42,9 @@ npcs       = {
     [240] = { name = 'Mimble-Pimble', menuId = 895, zone = 240 },
 }
 
+-- option index is 2 8 bit numbers.
+-- The first number (2) indicates that a gem is being purchased
+-- The second is the index of the gem, from 0 - 25
 pGems      = {
     [0] = { ki = 2468, cost = 10, oi = 2 },     -- shadow lord
     [1] = { ki = 2470, cost = 10, oi = 258 },   -- stellar fulcrum
@@ -68,6 +71,7 @@ pGems      = {
     [22] = { ki = 3187, cost = 10, oi = 5634 }, -- divine
     [23] = { ki = 3188, cost = 10, oi = 5890 }, -- maiden
     [24] = { ki = 3261, cost = 30, oi = 6146 }, -- Shinryu
+    [25] = { ki = 3356, cost = 30, oi = 6402 } -- Cloud of darkness
 }
 
 shortcuts  = {
@@ -141,7 +145,10 @@ shortcuts  = {
     ['maiden'] = 23,
     ['lilith'] = 23,
     ['wyrm'] = 24,
-    ['shinryu'] = 24
+    ['shinryu'] = 24,
+    ['orb'] = 25,
+    ['radiance'] = 25,
+    ['cod'] = 25
 }
 
 
@@ -280,9 +287,19 @@ ashita.events.register('packet_in', 'pg_cb', function(e)
         local menuId = struct.unpack('H', e.data, 0x2C + 0x01);
         local npc = npcs[zone]
         local merits = struct.unpack('I2', e.data, 17);
+        
         if not _gem or not npc or npc.menuId ~= menuId then return false end
-
+        
         e.blocked = true;
+
+        local availabilityMask = struct.unpack('L', e.data, 0x0C + 0x01);
+
+        if (bit.band(availabilityMask, math.pow(2, (_gem.oi - 2) / 256)) == 0) then
+            message(kiName(_gem.ki) .. ' not unlocked!');
+            ResetDialogue(npc, false);
+            _gem = nil
+            return true;
+        end
 
         if _gem.cost <= merits then
             local packet = {}
