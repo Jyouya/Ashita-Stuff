@@ -24,7 +24,7 @@ do
                 return self._width;
             end
         end
-        return math.max(self.variable:map(textSize):unpack()) + 8;
+        return math.max(self:getOptions():map(textSize):unpack()) + 8;
     end
 end
 
@@ -35,7 +35,7 @@ do
     function Dropdown:_drawAnimating(pos, scale)
         local options = self:getOptions();
         local width, height;
-        
+
         -- We can only expand up/down
         height = #options * 20 * scale + 20;
         width = self:getWidth();

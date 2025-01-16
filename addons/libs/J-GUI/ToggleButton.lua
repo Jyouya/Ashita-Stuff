@@ -5,18 +5,30 @@ local Button = require('J-GUI/Button');
 
 local ToggleButton = Button:new();
 
-function ToggleButton:onClick(e)
+function ToggleButton:getValue()
+    return self.variable and self.variable.value
+end
+
+function ToggleButton:setValue(value)
     if (self.variable) then
-        self.variable:toggle();
+        self.variable:set(value);
     end
 end
 
+function ToggleButton:toggle()
+    self:setValue(not self:getValue());
+end
+
+function ToggleButton:onClick(e)
+    self:toggle();
+end
+
 function ToggleButton:getColor()
-    return (self.variable and self.variable.value) and self.activeColor or self.inactiveColor;
+    return self:getValue() and self.activeColor or self.inactiveColor;
 end
 
 function ToggleButton:getTexture()
-    return (self.variable and self.variable.value) and self:getActiveTexture() or self:getInactiveTexture();
+    return self:getValue() and self:getActiveTexture() or self:getInactiveTexture();
 end
 
 local textures = T {};

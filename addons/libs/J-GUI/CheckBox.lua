@@ -31,7 +31,7 @@ function CheckBox:onMouse(e)
         -- Left Button Up
         [514] = (function()
             if (self.pressed) then
-                self.variable:set(not self.variable.value);
+                self:toggle();
             end
             self.pressed = false;
             e.blocked = true;
@@ -47,6 +47,14 @@ end
 
 local dot;
 
+function CheckBox:toggle()
+    return self.variable:set(not self:getValue());
+end
+
+function CheckBox:getValue()
+    return self.variable.value;
+end
+
 function CheckBox:draw()
     if (self.hidden) then return; end
 
@@ -56,7 +64,7 @@ function CheckBox:draw()
     drawBorderBox(self.ctx, pos.x, pos.y, self:getWidth(), self:getHeight(), self:getColor(),
         self.ctx.background_opacity);
 
-    if (self.variable.value) then
+    if (self:getValue()) then
         self:drawMarker(pos);
     end
 end

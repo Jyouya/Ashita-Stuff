@@ -14,6 +14,7 @@ local GUI = {
     Dropdown = require('J-GUI/Dropdown'),
     Button = require('J-GUI/Button'),
     ToggleButton = require('J-GUI/ToggleButton'),
+    CheckBox = require('J-GUI/CheckBox'),
     ENUM = require('J-GUI/enum')
 };
 
