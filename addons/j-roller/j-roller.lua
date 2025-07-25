@@ -32,6 +32,7 @@ local defaultSettings = T {
     oldrandomdeal = false, -- Use Random Deal for Snake/Fold vs Crooked
     partyalert = false,    -- Alert party before rolling
     gamble = false,        -- Gamble for double 11s when bust immune
+    bustrecovery = true,   -- Prioritize Random Deal for bust recovery over Phantom Roll cooldown
     hasSnakeEye = true,    -- true = enabled, false = disabled
     hasFold = true,        -- true = enabled, false = disabled
 };
@@ -302,15 +303,24 @@ local function doNewRoll()
         end
     end
 
-    -- Bust handling with enhanced features
+    -- Enhanced bust handling with priority options
     if (hasBuff('Bust')) then
-        if (hasFold and recasts[198] == 0) then
+        if settings.bustrecovery and settings.randomdeal and recasts[196] == 0 then
+            -- Prioritize Random Deal for instant recovery
+            rollQ:push(rollsByName['Random Deal']);
+            return;
+        elseif (hasFold and recasts[198] == 0) then
+            -- Use Fold if available
             rollQ:push(rollsByName['Fold']);
             return;
         elseif (settings.randomdeal and recasts[196] < 30) then
+            -- Fallback to Random Deal if coming off cooldown soon
             rollQ:push(rollsByName['Random Deal']);
             return;
         end
+        -- If no bust recovery options available, wait for Phantom Roll cooldown
+        sleep();
+        return;
     end
 
 
@@ -842,6 +852,16 @@ ashita.events.register('command', 'command_cb', function(e)
         message('Gamble Mode: ' .. (settings.gamble and 'On' or 'Off'));
         libSettings.save();
         
+    elseif (cmd == 'bustrecovery') then
+        local arg = args[1] and args[1]:lower();
+        if arg == 'on' then
+            settings.bustrecovery = true;
+        elseif arg == 'off' then
+            settings.bustrecovery = false;
+        end
+        message('Bust Recovery Priority: ' .. (settings.bustrecovery and 'Random Deal First' or 'Fold First'));
+        libSettings.save();
+        
     elseif (cmd == 'once') then
         message('Will roll until both rolls are up, then stop.');
         once = true;
@@ -894,6 +914,7 @@ ashita.events.register('command', 'command_cb', function(e)
         message('/roller randomdeal on/off - Use Random Deal');
         message('/roller partyalert on/off - Alert party before rolling');
         message('/roller gamble on/off - Gamble for double 11s');
+        message('/roller bustrecovery on/off - Prioritize Random Deal for bust recovery');
         message('/roller once - Roll both rolls once then stop');
         message('/roller snakeeye/fold on/off - Merit ability settings');
         message('/roller debug - Show debug information');
