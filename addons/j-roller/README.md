@@ -59,10 +59,13 @@ Quick access to optimized roll setups:
 - **Timeout Protection**: Prevents hanging on failed actions
 
 ### **🎨 Smart GUI**
+- **Dual Interface**: Both original J-GUI overlay and new comprehensive ImGui menu
+- **ImGui Settings Menu**: Complete control panel with organized sections for all features
 - **Job Mode Awareness**: Roll 2 shows "N/A (Sub COR)" and is disabled for subjob mode
 - **Real-Time Status**: Shows current activity (Enabled/Sleeping/Idle/Action)
-- **Draggable Interface**: Persistent position saving
-- **Clean Layout**: 3x2 grid layout optimized for visibility
+- **Draggable Interface**: Persistent position saving for both interfaces
+- **Quick Presets**: One-click access to all roll combinations
+- **Advanced Settings**: Easy toggles for all enhanced features
 
 ### **⚙️ Advanced Settings (From AshitaRoller)**
 - **`crooked2`**: Use Crooked Cards on roll 2 (default: on)
@@ -104,7 +107,16 @@ Quick access to optimized roll setups:
 /roller partyalert on|off  # Alert party before rolling
 /roller gamble on|off      # Gamble mode for bust immunity exploitation
 /roller once               # Roll both rolls once then stop
+/roller menu               # Toggle ImGui settings menu
 ```
+
+### **🖥️ ImGui Settings Menu**
+The comprehensive settings interface accessed with `/roller menu` provides:
+- **Basic Controls**: Start/stop, roll selection, one-shot rolling
+- **Quick Presets**: One-click combat, magic, pet, and utility setups  
+- **Advanced Settings**: All enhanced features with easy toggles
+- **Merit Abilities**: Manual Snake Eye and Fold control
+- **Status & Debug**: Real-time info and troubleshooting
 
 ### **Merit Ability Control**
 ```bash
