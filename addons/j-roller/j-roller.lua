@@ -18,6 +18,14 @@ local zoneChange = require('events.zoneChange');
 
 local libSettings = require('settings');
 
+-- ImGui support
+local imgui = require('imgui');
+
+-- ImGui constants (in case they're not automatically available)
+local ImGuiCond_FirstUseEver = ImGuiCond_FirstUseEver or 2;
+local ImGuiWindowFlags_AlwaysAutoResize = ImGuiWindowFlags_AlwaysAutoResize or 64;
+local ImGuiTreeNodeFlags_DefaultOpen = ImGuiTreeNodeFlags_DefaultOpen or 32;
+
 local defaultSettings = T {
     x = 200,
     y = 200,
@@ -35,9 +43,17 @@ local defaultSettings = T {
     bustrecovery = true,   -- Prioritize Random Deal for bust recovery over Phantom Roll cooldown
     hasSnakeEye = true,    -- true = enabled, false = disabled
     hasFold = true,        -- true = enabled, false = disabled
+    -- ImGui window settings
+    showImGuiMenu = false, -- Show/hide ImGui menu
+    imguiMenuX = 100,      -- ImGui window X position
+    imguiMenuY = 100,      -- ImGui window Y position
 };
 
 local settings = libSettings.load(defaultSettings);
+
+-- ImGui window state
+local showImGuiMenu = { settings.showImGuiMenu };
+local imguiFirstRun = true;
 
 local fuzzyNames = require('FuzzyNames');
 local rollsByName = require('actions').rollsByName;
@@ -103,8 +119,8 @@ ashita.events.register('load', 'jroller_gui_load', function()
         draggable = true,
         _x = settings.x,
         _y = settings.y,
-        _width = 320,
-        _height = 120,
+        _width = 280,
+        _height = 140,
         onDragFinish = function(view)
             local pos = view:getPos();
             settings.x = pos.x;
@@ -114,6 +130,8 @@ ashita.events.register('load', 'jroller_gui_load', function()
     });
 
     GUI.ctx.addView(UI);
+
+
 
         UI:addView(
         GUI.ToggleButton:new({
@@ -619,6 +637,317 @@ end
 -- Start the main loop when addon loads
 ashita.events.register('d3d_present', 'roller_main_loop', mainLoop);
 
+-- Apply a preset roll combination
+local function applyPreset(presetName)
+    local preset = presets[presetName:lower()];
+    if preset then
+        rolls[1]:set(preset[1]);
+        rolls[2]:set(preset[2]);
+        message(('Preset "%s" applied: %s + %s'):format(presetName, preset[1], preset[2]));
+        wakeUp();
+        return true;
+    end
+    return false;
+end
+
+-- ImGui rendering function
+local function renderImGuiMenu()
+    if not showImGuiMenu[1] then
+        return;
+    end
+
+    -- Set window position on first run
+    if imguiFirstRun then
+        imgui.SetNextWindowPos({ settings.imguiMenuX, settings.imguiMenuY }, ImGuiCond_FirstUseEver);
+        imgui.SetNextWindowSize({ 420, 600 }, ImGuiCond_FirstUseEver);
+        imguiFirstRun = false;
+    end
+
+    if imgui.Begin('J-Roller Enhanced Settings', showImGuiMenu, ImGuiWindowFlags_AlwaysAutoResize) then
+        
+        -- === BASIC CONTROLS ===
+        if imgui.CollapsingHeader('Basic Controls', ImGuiTreeNodeFlags_DefaultOpen) then
+            
+            -- Enable/Disable
+            local enabledValue = { enabled.value };
+            if imgui.Checkbox('Auto-Rolling Enabled', enabledValue) then
+                enabled:set(enabledValue[1]);
+            end
+            
+            imgui.Separator();
+            
+            -- Current Mode Display
+            updateJobInfo();
+            local modeText = '';
+            if mainjob == 17 then
+                modeText = 'Mode: Main Job COR (Full Features)';
+            elseif subjob == 17 then
+                modeText = 'Mode: Sub Job COR (Single Roll Only)';
+            else
+                modeText = 'Mode: Not COR (No Rolling Available)';
+            end
+            imgui.TextColored({ 0.7, 0.9, 1.0, 1.0 }, modeText);
+            
+            imgui.Separator();
+            
+            -- Roll Selection
+            imgui.Text('Roll 1:');
+            imgui.SameLine();
+            imgui.SetNextItemWidth(200);
+            if imgui.BeginCombo('##roll1', rolls[1].value) then
+                for _, rollName in ipairs(rolls[1]) do
+                    local isSelected = (rolls[1].value == rollName);
+                    if imgui.Selectable(rollName, isSelected) then
+                        rolls[1]:set(rollName);
+                    end
+                    if isSelected then
+                        imgui.SetItemDefaultFocus();
+                    end
+                end
+                imgui.EndCombo();
+            end
+            
+            imgui.Text('Roll 2:');
+            imgui.SameLine();
+            imgui.SetNextItemWidth(200);
+            
+            if subjob == 17 then
+                imgui.Text('N/A (Sub COR)');
+            else
+                if imgui.BeginCombo('##roll2', rolls[2].value) then
+                    for _, rollName in ipairs(rolls[2]) do
+                        local isSelected = (rolls[2].value == rollName);
+                        if imgui.Selectable(rollName, isSelected) then
+                            rolls[2]:set(rollName);
+                        end
+                        if isSelected then
+                            imgui.SetItemDefaultFocus();
+                        end
+                    end
+                    imgui.EndCombo();
+                end
+            end
+            
+            imgui.Separator();
+            
+            -- Once Mode
+            if imgui.Button('Roll Once') then
+                message('Will roll until both rolls are up, then stop.');
+                once = true;
+                enabled:set(true);
+            end
+            imgui.SameLine();
+            imgui.TextColored({ 0.8, 0.8, 0.8, 1.0 }, '(Roll both rolls once then stop)');
+        end
+        
+        -- === QUICK PRESETS ===
+        if imgui.CollapsingHeader('Quick Presets', ImGuiTreeNodeFlags_DefaultOpen) then
+            
+            -- Combat Presets
+            imgui.TextColored({ 1.0, 0.8, 0.6, 1.0 }, 'Combat:');
+            if imgui.Button('TP (SAM+FTR)') then applyPreset('tp'); end
+            imgui.SameLine();
+            if imgui.Button('Accuracy (SAM+HUN)') then applyPreset('acc'); end
+            imgui.SameLine();
+            if imgui.Button('WS (CHA+FTR)') then applyPreset('ws'); end
+            
+            if imgui.Button('Melee (SAM+CHA)') then applyPreset('melee'); end
+            
+            imgui.Separator();
+            
+            -- Magic Presets
+            imgui.TextColored({ 0.8, 0.6, 1.0, 1.0 }, 'Magic:');
+            if imgui.Button('Nuke (WIZ+WAR)') then applyPreset('nuke'); end
+            imgui.SameLine();
+            if imgui.Button('Magic (WIZ+WAR)') then applyPreset('magic'); end
+            imgui.SameLine();
+            if imgui.Button('Burst (WIZ+WAR)') then applyPreset('burst'); end
+            
+            imgui.Separator();
+            
+            -- Pet Presets
+            imgui.TextColored({ 0.6, 1.0, 0.8, 1.0 }, 'Pet:');
+            if imgui.Button('Pet (COM+BEA)') then applyPreset('pet'); end
+            imgui.SameLine();
+            if imgui.Button('Pet Phy (COM+BEA)') then applyPreset('petphy'); end
+            
+            if imgui.Button('Pet Acc (COM+DRA)') then applyPreset('petacc'); end
+            imgui.SameLine();
+            if imgui.Button('Pet Nuke (PUP+COM)') then applyPreset('petnuke'); end
+            
+            imgui.Separator();
+            
+            -- Utility Presets
+            imgui.TextColored({ 1.0, 1.0, 0.6, 1.0 }, 'Utility:');
+            if imgui.Button('EXP (COR+DAN)') then applyPreset('exp'); end
+            imgui.SameLine();
+            if imgui.Button('Speed (BOL+BOL)') then applyPreset('speed'); end
+        end
+        
+        -- === ADVANCED SETTINGS ===
+        if imgui.CollapsingHeader('Advanced Settings') then
+            
+            -- Combat Settings
+            imgui.TextColored({ 1.0, 0.8, 0.6, 1.0 }, 'Combat Options:');
+            
+            local engagedValue = { settings.engaged };
+            if imgui.Checkbox('Only Roll While Engaged', engagedValue) then
+                settings.engaged = engagedValue[1];
+                libSettings.save();
+            end
+            
+            local partyalertValue = { settings.partyalert };
+            if imgui.Checkbox('Alert Party Before Rolling', partyalertValue) then
+                settings.partyalert = partyalertValue[1];
+                libSettings.save();
+            end
+            
+            imgui.Separator();
+            
+            -- Ability Usage Settings
+            imgui.TextColored({ 0.8, 0.6, 1.0, 1.0 }, 'Ability Usage:');
+            
+            local crooked2Value = { settings.crooked2 };
+            if imgui.Checkbox('Use Crooked Cards on Roll 2', crooked2Value) then
+                settings.crooked2 = crooked2Value[1];
+                libSettings.save();
+            end
+            
+            local randomdealValue = { settings.randomdeal };
+            if imgui.Checkbox('Use Random Deal', randomdealValue) then
+                settings.randomdeal = randomdealValue[1];
+                libSettings.save();
+            end
+            
+            local oldrandomdealValue = { settings.oldrandomdeal };
+            if imgui.Checkbox('Random Deal: Reset Snake Eye/Fold (vs Crooked)', oldrandomdealValue) then
+                settings.oldrandomdeal = oldrandomdealValue[1];
+                libSettings.save();
+            end
+            
+            imgui.Separator();
+            
+            -- Advanced Rolling Options
+            imgui.TextColored({ 1.0, 0.6, 0.6, 1.0 }, 'Advanced Rolling:');
+            
+            local gambleValue = { settings.gamble };
+            if imgui.Checkbox('Gamble Mode (Exploit Bust Immunity)', gambleValue) then
+                settings.gamble = gambleValue[1];
+                libSettings.save();
+            end
+            
+            local bustrecoveryValue = { settings.bustrecovery };
+            if imgui.Checkbox('Prioritize Random Deal for Bust Recovery', bustrecoveryValue) then
+                settings.bustrecovery = bustrecoveryValue[1];
+                libSettings.save();
+            end
+        end
+        
+        -- === MERIT ABILITIES ===
+        if imgui.CollapsingHeader('Merit Abilities') then
+            
+            imgui.TextColored({ 0.6, 1.0, 1.0, 1.0 }, 'Manual Merit Ability Control:');
+            
+            local hasSnakeEyeValue = { settings.hasSnakeEye };
+            if imgui.Checkbox('Snake Eye Enabled', hasSnakeEyeValue) then
+                settings.hasSnakeEye = hasSnakeEyeValue[1];
+                libSettings.save();
+            end
+            
+            local hasFoldValue = { settings.hasFold };
+            if imgui.Checkbox('Fold Enabled', hasFoldValue) then
+                settings.hasFold = hasFoldValue[1];
+                libSettings.save();
+            end
+            
+            imgui.Separator();
+            imgui.TextColored({ 0.8, 0.8, 0.8, 1.0 }, 'Note: These override auto-detection.');
+        end
+        
+        -- === STATUS & DEBUG ===
+        if imgui.CollapsingHeader('Status & Debug') then
+            
+            -- Current Status
+            imgui.TextColored({ 0.6, 1.0, 0.6, 1.0 }, 'Current Status:');
+            local status = asleep and 'Sleeping' or rollQ:peek() and rollQ:peek().en or 'Idle';
+            if enabled.value and status == 'Idle' then
+                status = 'Enabled';
+            end
+            imgui.Text('Status: ' .. status);
+            
+            imgui.Text('Roll 1: ' .. rolls[1].value);
+            if subjob == 17 then
+                imgui.Text('Roll 2: DISABLED (Sub COR)');
+            else
+                imgui.Text('Roll 2: ' .. rolls[2].value);
+            end
+            
+            imgui.Separator();
+            
+            -- Debug Info
+            imgui.TextColored({ 1.0, 0.8, 0.6, 1.0 }, 'Debug Information:');
+            imgui.Text('Main Job: ' .. tostring(mainjob));
+            imgui.Text('Sub Job: ' .. tostring(subjob));
+            imgui.Text('Snake Eye Available: ' .. tostring(hasSnakeEye));
+            imgui.Text('Fold Available: ' .. tostring(hasFold));
+            imgui.Text('Roll Window: ' .. tostring(rollWindow or 'None'));
+            imgui.Text('Pending Action: ' .. tostring(pending));
+            
+            if imgui.Button('Show Debug in Chat') then
+                updateJobInfo();
+                message('=== Debug Info ===');
+                message('Main Job: ' .. tostring(mainjob));
+                message('Sub Job: ' .. tostring(subjob));
+                message('Snake Eye Enabled: ' .. tostring(hasSnakeEye));
+                message('Fold Enabled: ' .. tostring(hasFold));
+                message('Settings Snake Eye: ' .. tostring(settings.hasSnakeEye));
+                message('Settings Fold: ' .. tostring(settings.hasFold));
+            end
+        end
+        
+        -- === HELP ===
+        if imgui.CollapsingHeader('Help & Commands') then
+            imgui.TextColored({ 1.0, 1.0, 0.6, 1.0 }, 'Chat Commands:');
+            imgui.Text('/roller - Show status');
+            imgui.Text('/roller start/stop - Enable/disable');
+            imgui.Text('/roller roll1/roll2 <n> - Set roll');
+            imgui.Text('/roller <preset> - Apply preset');
+            imgui.Text('/roller menu - Toggle this menu');
+            imgui.Text('/roller help - Show all commands');
+            
+            if imgui.Button('Show Help in Chat') then
+                message('=== J-Roller Enhanced Commands ===');
+                message('/roller - Show status');
+                message('/roller start/stop - Enable/disable rolling');
+                message('/roller roll1/roll2 <n> - Set roll');
+                message('/roller <preset> - Apply preset (tp, acc, ws, nuke, pet, etc.)');
+                message('/roller engaged on/off - Only roll while engaged');
+                message('/roller crooked2 on/off - Use Crooked Cards on roll 2');
+                message('/roller randomdeal on/off - Use Random Deal');
+                message('/roller partyalert on/off - Alert party before rolling');
+                message('/roller gamble on/off - Gamble for double 11s');
+                        message('/roller bustrecovery on/off - Prioritize Random Deal for bust recovery');
+        message('/roller once - Roll both rolls once then stop');
+        message('/roller snakeeye/fold on/off - Merit ability settings');
+        message('/roller menu - Toggle ImGui settings menu');
+        message('/roller debug - Show debug information');
+            end
+        end
+        
+        -- Save window position
+        local windowPosX, windowPosY = imgui.GetWindowPos();
+        if windowPosX ~= settings.imguiMenuX or windowPosY ~= settings.imguiMenuY then
+            settings.imguiMenuX = windowPosX;
+            settings.imguiMenuY = windowPosY;
+            libSettings.save();
+        end
+    end
+    imgui.End();
+end
+
+-- Register ImGui rendering
+ashita.events.register('d3d_present', 'roller_imgui_render', renderImGuiMenu);
+
 local ignoreIds = T { 177, 178, 96, 133 };
 
 ashita.events.register('packet_in', 'roller_action_cb', function(e)
@@ -670,13 +999,29 @@ local stopCommands = T { 'stop', 'quit', 'off', 'disable' };
 
 local function setRoll(slot, text)
     local name = (function(inputText)
+        local bestMatch = nil;
+        local bestMatchLength = 0;
+        
+        -- First pass: look for exact matches
         for k, v in pairs(fuzzyNames) do
             for _, j in ipairs(v) do
-                if inputText:startswith(j) then
-                    return k
+                if inputText == j then
+                    return k;  -- Exact match always wins
                 end
             end
         end
+        
+        -- Second pass: look for longest startswith match
+        for k, v in pairs(fuzzyNames) do
+            for _, j in ipairs(v) do
+                if inputText:startswith(j) and string.len(j) > bestMatchLength then
+                    bestMatch = k;
+                    bestMatchLength = string.len(j);
+                end
+            end
+        end
+        
+        return bestMatch;
     end)(text:lower());
 
     if (name) then
@@ -698,18 +1043,7 @@ local function setRoll(slot, text)
     end
 end
 
--- Apply a preset roll combination
-local function applyPreset(presetName)
-    local preset = presets[presetName:lower()];
-    if preset then
-        rolls[1]:set(preset[1]);
-        rolls[2]:set(preset[2]);
-        message(('Preset "%s" applied: %s + %s'):format(presetName, preset[1], preset[2]));
-        wakeUp();
-        return true;
-    end
-    return false;
-end
+
 
 enabled.on_change:register(function()
     rollQ = Q {};
@@ -903,6 +1237,11 @@ ashita.events.register('command', 'command_cb', function(e)
         message('Fold Enabled: ' .. tostring(hasFold));
         message('Settings Snake Eye: ' .. tostring(settings.hasSnakeEye));
         message('Settings Fold: ' .. tostring(settings.hasFold));
+    elseif (cmd == 'menu') then
+        showImGuiMenu[1] = not showImGuiMenu[1];
+        settings.showImGuiMenu = showImGuiMenu[1];
+        libSettings.save();
+        message('ImGui Menu: ' .. (showImGuiMenu[1] and 'Shown' or 'Hidden'));
     elseif (cmd == 'help') then
         message('=== J-Roller Enhanced Commands ===');
         message('/roller - Show status');
@@ -917,6 +1256,7 @@ ashita.events.register('command', 'command_cb', function(e)
         message('/roller bustrecovery on/off - Prioritize Random Deal for bust recovery');
         message('/roller once - Roll both rolls once then stop');
         message('/roller snakeeye/fold on/off - Merit ability settings');
+        message('/roller menu - Toggle ImGui settings menu');
         message('/roller debug - Show debug information');
     else
         message('Unknown command: ' .. cmd .. '. Use /roller help for commands.');
