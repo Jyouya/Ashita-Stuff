@@ -79,6 +79,19 @@ function RollingStrategy:shouldDoNewRoll(enabled)
         end
     end
     
+    -- Check town mode setting
+    if self.settings.townmode then
+        local zone = AshitaCore:GetMemoryManager():GetParty():GetMemberZone(0);
+        local zoneName = AshitaCore:GetResourceManager():GetString('zones.names', zone);
+        local cities = require('cities');
+        
+
+        
+        if cities[zoneName] then
+            return false, "In town (Town mode enabled)";
+        end
+    end
+    
     -- Handle 'once' mode - check if we have both rolls (or just one for sub-COR)
     if self.once then
         local haveRoll1 = self.hasBuff(self.rolls[1].value);
@@ -100,77 +113,88 @@ function RollingStrategy:shouldDoNewRoll(enabled)
     return true, "Ready to roll";
 end
 
--- Handle bust recovery logic
+-- Handle bust recovery with available abilities
 function RollingStrategy:handleBustRecovery()
+    -- Only handle bust recovery if we actually have the Bust buff
     if not self.hasBuff('Bust') then
         return false;
     end
     
-    if self.settings.bustrecovery and self.settings.randomdeal and self.recasts[196] == 0 then
-        -- Prioritize Random Deal for instant recovery
-        self.rollQ:push(self.rollsByName['Random Deal']);
-        return true;
-    elseif (self.hasFold and self.recasts[198] == 0) then
-        -- Use Fold if available
+    -- Priority: Fold first (removes bust), then Random Deal (instant recovery)
+    if (self.hasFold and self.recasts[198] == 0) then
+        self.message('Using Fold for bust recovery');
         self.rollQ:push(self.rollsByName['Fold']);
         return true;
-    elseif (self.settings.randomdeal and self.recasts[196] < 30) then
-        -- Fallback to Random Deal if coming off cooldown soon
+    elseif (self.settings.randomdeal and self.recasts[196] == 0) then
+        self.message('Using Random Deal for bust recovery');
         self.rollQ:push(self.rollsByName['Random Deal']);
         return true;
     end
     
-    -- If no bust recovery options available, wait for Phantom Roll cooldown
+    -- If no abilities available, wait
     self.sleep();
     return true;
-end
-
--- Handle Random Deal logic
-function RollingStrategy:handleRandomDeal()
-    if not (self.settings.randomdeal and self.mainjob == 17 and self.recasts[196] == 0) then
-        return false;
-    end
-    
-    if self.settings.oldrandomdeal then
-        -- Old mode: Reset Snake Eye/Fold
-        if (self.hasSnakeEye and self.recasts[197] > 0) or (self.hasFold and self.recasts[198] > 0) then
-            self.rollQ:push(self.rollsByName['Random Deal']);
-            return true;
-        end
-    else
-        -- New mode: Reset Crooked Cards
-        if self.recasts[96] > 0 and self.recasts[193] == 0 then
-            self.rollQ:push(self.rollsByName['Random Deal']);
-            return true;
-        end
-    end
-    
-    return false;
 end
 
 -- Determine which roll to do next
 function RollingStrategy:determineNextRoll()
     -- Roll priority: Roll 1 first, then Roll 2 (unless sub-COR)
+    local haveRoll1 = self.hasBuff(self.rolls[1].value);
+    local haveRoll2 = self.hasBuff(self.rolls[2].value);
     
-    if (not self.hasBuff(self.rolls[1].value)) then
-        -- Track roll time and crooked status for advanced logic
-        -- Note: roll1RollTime and rollCrooked will be updated by main module
+
+    
+    -- Gamble Mode: Check if we should fold Roll 1 that's not 11
+    if self.settings.gamble and haveRoll1 and self.mainjob == 17 then
+        local currentRoll1 = self.rollsByName[self.rolls[1].value];
+        if self.lastRoll ~= 11 and self.lastRoll > 0 then
+            -- We have Roll 1 but it's not 11, consider folding to try again
+            if self.hasFold and self.recasts[198] == 0 then
+                self.message('Gamble Mode: Folding Roll 1 (not 11) to try again');
+                self.rollQ:push(self.rollsByName['Fold']);
+                return true;
+            elseif self.settings.randomdeal and self.recasts[196] == 0 then
+                self.message('Gamble Mode: Random Deal to reset and try for 11 again');
+                self.rollQ:push(self.rollsByName['Random Deal']);
+                return true;
+            end
+        end
+    end
+    
+    if (not haveRoll1) then
+        -- Roll 1 setup
+        self.message('Setting up Roll 1: ' .. self.rolls[1].value);
         
-        -- Use Crooked Cards if available and level 95+
-        if self.mainjob == 17 and AshitaCore:GetMemoryManager():GetPlayer():GetMainJobLevel() >= 95 and self.recasts[96] == 0 then
+        -- Use Crooked Cards on Roll 1 only if we're NOT saving it for Roll 2
+        local level = AshitaCore:GetMemoryManager():GetPlayer():GetMainJobLevel();
+        local crookedCD = self.recasts[96];
+        
+        if not self.settings.crooked2 and self.mainjob == 17 and level >= 95 and crookedCD == 0 then
+            self.message('Using Crooked Cards for Roll 1');
             self.rollQ:push(self.rollsByName['Crooked Cards']);
         end
-        self.rollQ:push(self.rollsByName[self.rolls[1].value]);
-        return true;
-    elseif (self.subjob ~= 17 and not (self.hasBuff(self.rolls[2].value) or self.hasBuff('Bust'))) then
-        -- Track roll time and crooked status for advanced logic
-        -- Note: roll2RollTime and rollCrooked will be updated by main module
         
-        -- Roll 2 only if main COR (sub-COR gets only one roll)
-        if self.settings.crooked2 and self.mainjob == 17 and AshitaCore:GetMemoryManager():GetPlayer():GetMainJobLevel() >= 95 and self.recasts[96] == 0 then
+        self.rollQ:push(self.rollsByName[self.rolls[1].value]);
+        
+
+        
+        return true;
+        
+    elseif (self.mainjob == 17 and not haveRoll2 and not self.hasBuff('Bust')) then
+        -- Roll 2 only for main COR (sub-COR gets only one roll)
+        
+
+        
+        self.message('Setting up Roll 2: ' .. self.rolls[2].value);
+        
+        if self.settings.crooked2 and AshitaCore:GetMemoryManager():GetPlayer():GetMainJobLevel() >= 95 and self.recasts[96] == 0 then
+            self.message('Using Crooked Cards for Roll 2');
             self.rollQ:push(self.rollsByName['Crooked Cards']);
         end
         self.rollQ:push(self.rollsByName[self.rolls[2].value]);
+        
+
+        
         return true;
     end
     
@@ -190,24 +214,33 @@ function RollingStrategy:doNewRoll(enabled)
         return false;
     end
 
-    -- Enhanced bust handling with priority options
+    -- Handle bust recovery FIRST (highest priority)
     if self:handleBustRecovery() then
         return true;
     end
 
-    -- Check phantom roll recast first
+    -- Check phantom roll recast
     if self.recasts[193] > 10 then
         self.sleep();
         return true;
     end
 
-    -- Enhanced Random Deal logic
-    if self:handleRandomDeal() then
-        return true;
+    -- Check if we already have both rolls 
+    local haveRoll1 = self.hasBuff(self.rolls[1].value);
+    local haveRoll2 = self.hasBuff(self.rolls[2].value);
+    
+    if haveRoll1 and (haveRoll2 or self.subjob == 17) then
+        -- Nothing else to do - all rolls are up
+        return false;
     end
 
-    -- Party alert before rolling
-    if self.settings.partyalert and not self.hasBuff(self.rolls[1].value) and not self.hasBuff(self.rolls[2].value) then
+    -- Reset lastRoll if we don't have any buffs
+    if not haveRoll1 and not haveRoll2 then
+        self.lastRoll = 0;
+    end
+
+    -- Party alert before rolling (only if we don't have any rolls)
+    if self.settings.partyalert and not haveRoll1 and not haveRoll2 then
         AshitaCore:GetChatManager():QueueCommand(-1, '/p Rolling in 8 seconds, stay close <call12>');
     end
 
@@ -222,6 +255,9 @@ end
 
 -- Advanced double-up logic from AshitaRoller
 function RollingStrategy:shouldDoubleUp()
+    -- Get fresh recast data for accurate cooldown checks
+    self.recasts = getAbilityRecasts();
+    
     local current = self.rollsByName[self.currentRoll];
     local rollID = current.param;
     local luckyNum = current.lucky;
@@ -235,31 +271,102 @@ function RollingStrategy:shouldDoubleUp()
         return false, "Sub-COR: Roll >= 5, stopping";
     end
     
+    -- Safe mode: use subjob-like strategy even on main COR
+    if self.settings.safemode then
+        if self.rollNum < 5 then
+            return true, "Safe Mode: Roll < 5";
+        end
+        return false, "Safe Mode: Roll >= 5, stopping";
+    end
+    
     -- Main COR advanced strategy (from AshitaRoller)
     if self.mainjob == 17 then
-        -- Gamble mode: if last roll was 11 (bust immune), be aggressive
-        if self.settings.gamble and self.lastRoll == 11 then
-            if self.hasSnakeEye and self.recasts[197] == 0 and (self.rollNum == 10 or (self.rollNum == (luckyNum - 1) and self.rollCrooked)) then
-                return false, "Gamble: Using Snake Eye for 11 or crooked lucky";
+        -- Gamble mode: aggressive strategy targeting 11s
+        if self.settings.gamble then
+            -- If we have bust immunity (last roll was 11), be very aggressive
+            if self.lastRoll == 11 then
+                if self.hasSnakeEye and self.recasts[197] == 0 and self.rollNum == 10 then
+                    return false, "Gamble: Snake Eye for guaranteed 11 while immune";
+                else
+                    return true, "Gamble: Bust immune, rolling aggressively for 11";
+                end
             else
-                return true, "Gamble: Immune to bust, rolling for double 11";
+                -- No bust immunity - be more conservative but still target 11
+                if self.hasSnakeEye and self.recasts[197] == 0 and self.rollNum == 10 then
+                    return false, "Gamble: Snake Eye for 11";
+                elseif self.rollNum < 4 then
+                    return true, "Gamble: Roll < 4, continuing to target 11";
+                elseif self.rollNum < 7 and (self.hasFold and self.recasts[198] == 0) then
+                    return true, "Gamble: Have Fold safety net, continuing";
+                else
+                    return false, "Gamble: Stopping to avoid bust without safety";
+                end
             end
         else
-            -- Normal strategy
-            if self.hasSnakeEye and self.recasts[197] == 0 and (self.rollNum == 10 or (self.rollNum == (luckyNum - 1) and (not self.settings.gamble or self.rollCrooked))) then
-                return false, "Using Snake Eye for lucky or 11";
-            elseif self.hasSnakeEye and self.recasts[197] == 0 and (not self.hasFold or self.recasts[198] > 0 or (self.rollCrooked and not self.settings.gamble)) and self.rollNum == unluckyNum then
-                return false, "Using Snake Eye to remove unlucky";
-            elseif self.hasFold and self.recasts[198] == 0 and (not self.rollCrooked or self.settings.gamble) then
-                return true, "Safe to risk: have Fold and roll not crooked";
-            elseif self.rollNum < 6 then
-                return true, "Roll < 6, continuing";
-            elseif self.hasSnakeEye and self.recasts[197] == 0 and self.rollNum + 1 ~= unluckyNum and 
-                   os.time() - self.roll1RollTime < 240 and os.time() - self.roll2RollTime < 240 then
-                return false, "End-game Snake Eye: rollNum+1 not unlucky, Snake Eye available";
-            else
-                return false, "Stopping: conditions not met";
+            -- Normal strategy - conservative approach
+            
+            -- PRIORITY 1: Use Snake Eye for 10 → 11 (highest priority)
+            if self.hasSnakeEye and self.recasts[197] == 0 and self.rollNum == 10 then
+                return false, "Using Snake Eye for guaranteed 11 (highest priority)";
             end
+            
+            -- PRIORITY 2: Use Snake Eye for lucky-1 (second priority)
+            if self.hasSnakeEye and self.recasts[197] == 0 and self.rollNum == (luckyNum - 1) and self.rollCrooked then
+                return false, "Using Snake Eye for lucky number (second priority)";
+            end
+            
+            -- PRIORITY 3: Use Snake Eye for unlucky numbers (third priority)
+            if self.hasSnakeEye and self.recasts[197] == 0 and self.rollNum == unluckyNum then
+                return false, "Using Snake Eye to avoid unlucky (third priority)";
+            end
+            
+            -- Check if we're on an unlucky 8+ - handle differently
+            if self.rollNum >= 8 then
+                if self.rollNum == unluckyNum then
+                    -- We're on an unlucky 8+ - try to Snake Eye off it
+                    if self.hasSnakeEye and self.recasts[197] == 0 then
+                        return false, "Using Snake Eye to avoid unlucky " .. unluckyNum;
+                    else
+                        -- No Snake Eye available - sit on unlucky unless aggressive mode
+                        if self.settings.gamble then
+                            return true, "Aggressive: Rolling off unlucky " .. unluckyNum;
+                        else
+                            return false, "Stopping: Unlucky " .. unluckyNum .. " without Snake Eye";
+                        end
+                    end
+                else
+                    -- Not unlucky, just a good high roll
+                    return false, "Stopping: " .. self.rollNum .. " is a good roll";
+                end
+            end
+            
+            -- Stop on 7 unless we have safety nets
+            if self.rollNum == 7 then
+                if self.hasFold and self.recasts[198] == 0 and not self.rollCrooked then
+                    return true, "Roll 7: Safe to risk with Fold available";
+                else
+                    return false, "Stopping: Roll 7 without safety";
+                end
+            end
+            
+            -- Continue on 6 only with safety or bust immunity
+            if self.rollNum == 6 then
+                if self.settings.bustimmunity and self.lastRoll == 11 then
+                    return true, "Roll 6: Bust immune, continuing";
+                elseif self.hasFold and self.recasts[198] == 0 and not self.rollCrooked then
+                    return true, "Roll 6: Safe to risk with Fold available";
+                else
+                    return false, "Stopping: Roll 6 without safety";
+                end
+            end
+            
+            -- Always continue on rolls < 6
+            if self.rollNum < 6 then
+                return true, "Roll < 6, continuing";
+            end
+            
+            -- Fallback
+            return false, "Stopping: conditions not met";
         end
     end
     
@@ -298,11 +405,7 @@ function RollingStrategy:executeSnakeEye(waiting)
     local unluckyNum = current.unlucky;
 
     if (snakeEyesActive) then
-        if (not waiting) then
-            -- globalCooldown will be set by main module
-            return 'wait'
-        end
-        -- waiting = false; -- will be set by main module
+        self.message('Snake Eye buff detected, queueing Double-Up immediately');
         local doubleUpAction = self:createDoubleUpAction();
         self.rollQ:push(doubleUpAction);
         return true;
@@ -339,11 +442,7 @@ function RollingStrategy:executeSnakeEye(waiting)
             end
         end
         
-        -- Fallback to Random Deal if Snake Eye conditions not met
-        if self.settings.randomdeal and self.recasts[196] == 0 then
-            self.rollQ:push(self.rollsByName['Random Deal']);
-            return true;
-        end
+        -- No fallback to Random Deal during active rolling
     end
     
     return false;
@@ -358,9 +457,50 @@ function RollingStrategy:executeRollStrategy(finishRoll)
         return self:doNewRoll(true); -- enabled is handled in doNewRoll
     end
 
-    -- If we hit 11 or lucky number, we're done
+    -- Before any roll decisions, check if we should use Random Deal after roll completion
+    -- This should happen once per roll, regardless of the result
+    local function checkAndUseRandomDeal()
+        if self.settings.randomdeal and self.recasts[196] == 0 then
+            local shouldUseRandomDeal = false;
+            local resetReasons = {};
+            
+            -- Check abilities based on user-configured priority order
+            for i, abilityName in ipairs(self.settings.randomDealPriority) do
+                local isOnCooldown = false;
+                local shouldCheck = true;
+                
+                if abilityName == 'Crooked Cards' then
+                    -- Don't check Crooked Cards if disabled by toggle
+                    shouldCheck = not self.settings.oldrandomdeal;
+                    isOnCooldown = shouldCheck and self.recasts[96] > 0;
+                elseif abilityName == 'Snake Eye' then
+                    isOnCooldown = self.hasSnakeEye and self.recasts[197] > 0;
+                elseif abilityName == 'Fold' then
+                    isOnCooldown = self.hasFold and self.recasts[198] > 0;
+                end
+                
+                if shouldCheck and isOnCooldown then
+                    table.insert(resetReasons, abilityName);
+                    shouldUseRandomDeal = true;
+                end
+            end
+            
+            if shouldUseRandomDeal then
+                local reason = table.concat(resetReasons, ', ');
+                self.message('Using Random Deal to reset: ' .. reason);
+                self.rollQ:push(self.rollsByName['Random Deal']);
+                return true; -- Don't finish roll yet, let Random Deal execute
+            end
+        end
+        return false;
+    end
+
+    -- If we hit 11 or lucky number, check Random Deal then finish
     if (self.rollNum == 11 or self.rollNum == self.rollsByName[self.currentRoll].lucky) then
-        -- rollWindow will be cleared by main module
+        if checkAndUseRandomDeal() then
+            return true; -- Random Deal queued, don't finish yet
+        end
+        finishRoll();
         return true;
     end
 
@@ -374,6 +514,11 @@ function RollingStrategy:executeRollStrategy(finishRoll)
 
     if (not snakeEyeResult) then
         if (not self:doubleUp()) then
+            -- Roll is ending without double-up, check Random Deal
+            if checkAndUseRandomDeal() then
+                return true; -- Random Deal queued, don't finish yet
+            end
+            
             -- If we decide not to double up, close the roll
             finishRoll();
         end

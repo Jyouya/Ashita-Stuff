@@ -145,12 +145,17 @@ function CommandHandler:handleHelp()
     self.message('/roller roll1/roll2 <name> - Set roll');
     self.message('/roller <preset> - Apply preset (tp, acc, ws, nuke, pet, etc.)');
     self.message('/roller engaged on/off - Only roll while engaged');
-    self.message('/roller crooked2 on/off - Use Crooked Cards on roll 2');
-    self.message('/roller randomdeal on/off - Use Random Deal');
+         self.message('/roller crooked2 on/off - Save Crooked Cards for roll 2 only');
+    self.message('/roller randomdeal on/off - Smart Random Deal usage');
+    self.message('/roller oldrandomdeal on/off - Disable Crooked Cards reset');
     self.message('/roller partyalert on/off - Alert party before rolling');
-    self.message('/roller gamble on/off - Gamble for double 11s');
-    self.message('/roller bustrecovery on/off - Prioritize Random Deal for bust recovery');
+         self.message('/roller gamble on/off - Aggressive mode for double 11s');
+     self.message('/roller bustimmunity on/off - Exploit bust immunity');
+     self.message('/roller safemode on/off - Ultra-conservative mode');
+     self.message('/roller townmode on/off - Prevent rolling in towns');
+
     self.message('/roller once - Roll both rolls once then stop');
+    self.message('/roller resetpriority - Reset Random Deal priority to default');
     self.message('/roller snakeeye/fold on/off - Merit ability settings');
     self.message('/roller menu - Toggle ImGui settings menu');
     self.message('/roller debug - Show debug information');
@@ -197,8 +202,8 @@ function CommandHandler:handleMeritAbility(ability, arg)
 end
 
 -- Main command processing function
-function CommandHandler:processCommand(command)
-    local args = command.command:lower():args();
+function CommandHandler:processCommand(e)
+    local args = e.command:args();
     if (#args == 0 or not args[1]:any('/roller')) then
         return false; -- Not our command
     end
@@ -262,7 +267,7 @@ function CommandHandler:processCommand(command)
         elseif arg == 'off' then
             self.settings.crooked2 = false;
         end
-        self.message('Crooked Cards on Roll 2: ' .. (self.settings.crooked2 and 'On' or 'Off'));
+                 self.message('Save Crooked for Roll 2 Only: ' .. (self.settings.crooked2 and 'On (Special)' or 'Off (Normal)'));
         self.libSettings.save();
         return true;
         
@@ -278,13 +283,12 @@ function CommandHandler:processCommand(command)
         return true;
         
     elseif cmd == 'oldrandomdeal' then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
+        if args[2] == 'on' then
             self.settings.oldrandomdeal = true;
-        elseif arg == 'off' then
+        elseif args[2] == 'off' then
             self.settings.oldrandomdeal = false;
         end
-        local mode = self.settings.oldrandomdeal and 'Fold/Snake Eye' or 'Crooked Cards';
+        local mode = self.settings.oldrandomdeal and 'Disabled for Crooked Cards' or 'Smart (All Abilities)';
         self.message('Random Deal Mode: ' .. mode);
         self.libSettings.save();
         return true;
@@ -294,19 +298,33 @@ function CommandHandler:processCommand(command)
         self:handleSettingToggle('partyalert', arg, 'Party Alert: On', 'Party Alert: Off');
         return true;
         
-    elseif cmd == 'gamble' then
-        local arg = args[1] and args[1]:lower();
-        self:handleSettingToggle('gamble', arg, 'Gamble Mode: On', 'Gamble Mode: Off');
-        return true;
-        
-    elseif cmd == 'bustrecovery' then
-        local arg = args[1] and args[1]:lower();
-        self:handleSettingToggle('bustrecovery', arg, 
-            'Bust Recovery Priority: Random Deal First', 
-            'Bust Recovery Priority: Fold First');
-        return true;
-        
-    elseif cmd == 'once' then
+         elseif cmd == 'gamble' then
+         local arg = args[1] and args[1]:lower();
+         self:handleSettingToggle('gamble', arg, 'Gamble Mode: On (Targeting double 11s)', 'Gamble Mode: Off');
+         return true;
+         
+           elseif cmd == 'bustimmunity' then
+          local arg = args[1] and args[1]:lower();
+          self:handleSettingToggle('bustimmunity', arg, 'Bust Immunity: On (Exploit when available)', 'Bust Immunity: Off (Always conservative)');
+          return true;
+          
+             elseif cmd == 'safemode' then
+           local arg = args[1] and args[1]:lower();
+           self:handleSettingToggle('safemode', arg, 'Safe Mode: On (Ultra-conservative)', 'Safe Mode: Off');
+           return true;
+           
+       elseif cmd == 'townmode' then
+           local arg = args[1] and args[1]:lower();
+           self:handleSettingToggle('townmode', arg, 'Town Mode: On (No rolling in cities)', 'Town Mode: Off');
+           return true;
+           
+       elseif cmd == 'resetpriority' then
+           self.settings.randomDealPriority = { 'Crooked Cards', 'Snake Eye', 'Fold' };
+           self.message('Random Deal priority reset to default: Crooked Cards > Snake Eye > Fold');
+           self.libSettings.save();
+           return true;
+           
+       elseif cmd == 'once' then
         self.message('Will roll until both rolls are up, then stop.');
         self.setOnce(true);
         return true;
