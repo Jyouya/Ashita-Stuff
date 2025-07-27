@@ -1,5 +1,5 @@
 addon.name    = 'J-Roller Enhanced';
-addon.author  = 'Jyouya - Additions by Palmer (Zodiarchy @ Asura)';
+addon.author  = 'Jyouya - Enhancements by Palmer (Zodiarchy @ Asura)';
 addon.version = '2.0';
 addon.desc    = 'The ultimate Corsair auto-roller with advanced features';
 
@@ -15,16 +15,20 @@ local functions = require('J-GUI/functions');
 functions.addResourcePath(addon.path .. '\\assets\\');
 
 local zoneChange = require('events.zoneChange');
-
 local libSettings = require('settings');
 
--- ImGui support
-local imgui = require('imgui');
+-- Load our abstracted modules
+local ImGuiInterface = require('interface');
+local CommandHandler = require('commands');
+local RollingStrategy = require('strategy');
+local StateManager = require('state');
 
--- ImGui constants (in case they're not automatically available)
-local ImGuiCond_FirstUseEver = ImGuiCond_FirstUseEver or 2;
-local ImGuiWindowFlags_AlwaysAutoResize = ImGuiWindowFlags_AlwaysAutoResize or 64;
-local ImGuiTreeNodeFlags_DefaultOpen = ImGuiTreeNodeFlags_DefaultOpen or 32;
+-- Load other required modules
+local fuzzyNames = require('FuzzyNames');
+local rollsByName = require('actions').rollsByName;
+local rollsByParam = require('actions').rollsByParam;
+local cities = require('cities');
+local presets = require('presets');
 
 local defaultSettings = T {
     x = 200,
@@ -51,48 +55,33 @@ local defaultSettings = T {
 
 local settings = libSettings.load(defaultSettings);
 
--- ImGui window state
-local showImGuiMenu = { settings.showImGuiMenu };
-local imguiFirstRun = true;
-
-local fuzzyNames = require('FuzzyNames');
-local rollsByName = require('actions').rollsByName;
-local rollsByParam = require('actions').rollsByParam;
-local cities = require('cities');
-local presets = require('presets');
-
+-- Core variables
 local rollQ = Q {};
-local pending = false;
-local timeout = nil;
+local pending = { false };
+local timeout = { nil };
 
-local rollNum = 0;
-local rollWindow = nil;
+local rollNum = { 0 };
+local rollWindow = { nil };
 local activeRolls = T { 0, 0 };
 
-local currentRoll;
-local globalCooldown = 0;
-local lastActive = 0;
+local currentRoll = { nil };
+local globalCooldown = { 0 };
+local lastActive = { 0 };
 
-local waiting = false;
-local asleep = true;
+local waiting = { false };
+local asleep = { true };
 
 local recasts = T {};
 
--- Job detection and merit abilities
-local mainjob = nil;
-local subjob = nil;
-local hasSnakeEye = false;
-local hasFold = false;
-local once = false;  -- Roll once mode
-
 -- Advanced rolling variables (from AshitaRoller)
-local lastRoll = 0;
-local rollCrooked = false;
-local roll1RollTime = 0;
-local roll2RollTime = 0;
+local lastRoll = { 0 };
+local rollCrooked = { false };
+local roll1RollTime = { 0 };
+local roll2RollTime = { 0 };
 
 local enabled = M(false, 'Enabled');
 local randomDeal = M(true, 'Use Random Deal')
+local once = { false };
 
 local rolls = require('rolls');
 
@@ -108,6 +97,191 @@ end
 rolls[1].on_change:register(saveRolls(1));
 rolls[2].on_change:register(saveRolls(2));
 
+-- Initialize state manager
+local stateManager = StateManager.new({
+    settings = settings
+});
+
+-- Create utility functions using state manager
+local message = StateManager.createMessage(addon.name, chat);
+local sleepManager = StateManager.createSleepManager(lastActive, asleep);
+
+-- Apply preset function
+local applyPreset = StateManager.createPresetApplier(presets, rolls, message, sleepManager.wakeUp);
+
+-- Set once mode function
+local function setOnce(value)
+    once[1] = value;
+    if not value then
+        message('Once mode disabled');
+    end
+end
+
+-- Action handlers
+local actionComplete = StateManager.createActionCompleteHandler(rollQ, rollWindow, activeRolls, currentRoll, globalCooldown);
+local finishRoll = StateManager.createFinishRollHandler(message, lastRoll, rollWindow, rollNum, currentRoll);
+
+-- Initialize rolling strategy
+local rollingStrategy = RollingStrategy.new({
+    settings = settings,
+    rollsByName = rollsByName,
+    rollsByParam = rollsByParam,
+    rolls = rolls,
+    message = message,
+    hasBuff = StateManager.hasBuff,
+    isIncapacitated = StateManager.isIncapacitated,
+    sleep = sleepManager.sleep,
+    rollQ = rollQ,
+});
+
+-- Update roll time tracking
+local function updateRollTiming(rollNumber)
+    if rollNumber == 1 then
+        roll1RollTime[1] = os.time();
+        rollCrooked[1] = false;
+    elseif rollNumber == 2 then
+        roll2RollTime[1] = os.time();
+        rollCrooked[1] = false;
+    end
+end
+
+-- Enhanced roll strategy with state sync
+local function rollStrategy()
+    stateManager:updateJobInfo();
+    
+    -- Sync state with strategy module
+    rollingStrategy:updateState({
+        mainjob = stateManager.mainjob,
+        subjob = stateManager.subjob,
+        hasSnakeEye = stateManager.hasSnakeEye,
+        hasFold = stateManager.hasFold,
+        once = once[1],
+        rollWindow = rollWindow[1],
+        currentRoll = currentRoll[1],
+        rollNum = rollNum[1],
+        lastRoll = lastRoll[1],
+        rollCrooked = rollCrooked[1],
+        roll1RollTime = roll1RollTime[1],
+        roll2RollTime = roll2RollTime[1],
+        recasts = recasts,
+    });
+    
+    -- Execute strategy
+    if rollWindow[1] then
+        rollingStrategy:executeRollStrategy(finishRoll);
+    else
+        local shouldRoll = rollingStrategy:doNewRoll(enabled.value);
+        if shouldRoll and once[1] then
+            local haveRoll1 = StateManager.hasBuff(rolls[1].value);
+            local haveRoll2 = StateManager.hasBuff(rolls[2].value);
+            
+            if stateManager.subjob == 17 then
+                if haveRoll1 then
+                    setOnce(false);
+                end
+            else
+                if haveRoll1 and haveRoll2 then
+                    setOnce(false);
+                end
+            end
+        end
+    end
+end
+
+-- Action timeout function
+local function actionTimeout()
+    rollQ = Q {};
+    rollStrategy();
+    pending[1] = false;
+    timeout[1] = nil;
+end
+
+-- Action execution function  
+local function doNext()
+    local recasts = getAbilityRecasts();
+
+    local cd = recasts[rollQ:peek().id];
+    local abilityName = rollQ:peek().en;
+
+    if (abilityName == nil) then
+        message('Ability Name nil');
+        return;
+    end
+
+    if (cd == 0) then
+        local command = ('/ja "%s" <me>'):format(abilityName);
+        message('command: ' .. command);
+        AshitaCore:GetChatManager():QueueCommand(-1, command);
+        pending[1] = true;
+        timeout[1] = os.time();
+    elseif ((rollWindow[1] and os.time() + cd > rollWindow[1])
+            or (not rollWindow[1] and cd > 10)) then
+        rollQ = Q {};
+        rollStrategy()
+    end
+end
+
+-- Main loop function
+local function mainLoop()
+    if (not enabled.value) then
+        return;
+    end
+    
+    -- Wake up if we're enabled but asleep
+    if asleep[1] then
+        asleep[1] = false;
+    end
+
+    local now = os.time();
+
+    if (now - globalCooldown[1] < 1.5) then
+        return;
+    end
+
+    if (pending[1] and now - timeout[1] > 5) then
+        actionTimeout();
+    end
+
+    if (rollWindow[1] and rollWindow[1] < os.time()) then
+        rollQ = Q {};
+        pending[1] = false;
+        finishRoll();
+    end
+
+    if (rollQ:isEmpty()) then
+        rollStrategy();
+    elseif (not pending[1]) then
+        doNext();
+    end
+end
+
+-- Initialize ImGui interface
+local imguiInterface = ImGuiInterface.new({
+    settings = settings,
+    libSettings = libSettings,
+    enabled = enabled,
+    rolls = rolls,
+    message = message,
+    updateJobInfo = function() stateManager:updateJobInfo() end,
+    applyPreset = applyPreset,
+    once = once,
+    setOnce = setOnce,
+});
+
+-- Initialize command handler
+local commandHandler = CommandHandler.new({
+    settings = settings,
+    libSettings = libSettings,
+    enabled = enabled,
+    rolls = rolls,
+    message = message,
+    updateJobInfo = function() stateManager:updateJobInfo() end,
+    applyPreset = applyPreset,
+    setOnce = setOnce,
+    imguiInterface = imguiInterface,
+});
+
+-- GUI setup
 ashita.events.register('load', 'jroller_gui_load', function()
     local UI = GUI.Container:new({
         layout = GUI.Container.LAYOUT.GRID,
@@ -131,9 +305,7 @@ ashita.events.register('load', 'jroller_gui_load', function()
 
     GUI.ctx.addView(UI);
 
-
-
-        UI:addView(
+    UI:addView(
         GUI.ToggleButton:new({
             variable = enabled,
             activeColor = T { 0, 55, 255 },
@@ -143,7 +315,7 @@ ashita.events.register('load', 'jroller_gui_load', function()
         }),
         GUI.Label:new({
             getValue = function()
-                local status = asleep and 'Sleeping' or rollQ:peek() and rollQ:peek().en or 'Idle';
+                local status = asleep[1] and 'Sleeping' or rollQ:peek() and rollQ:peek().en or 'Idle';
                 if enabled.value and status == 'Idle' then
                     status = 'Enabled';
                 end
@@ -169,10 +341,12 @@ ashita.events.register('load', 'jroller_gui_load', function()
             isFixedWidth = true,
             variable = rolls[2],
             disabled = function()
-                return subjob == 17;
+                stateManager:updateJobInfo();
+                return stateManager.subjob == 17;
             end,
             getValue = function()
-                if subjob == 17 then
+                stateManager:updateJobInfo();
+                if stateManager.subjob == 17 then
                     return 'N/A (Sub COR)';
                 else
                     return rolls[2].value;
@@ -182,772 +356,30 @@ ashita.events.register('load', 'jroller_gui_load', function()
     );
 end)
 
-local function actionComplete()
-    local act = rollQ:pop();
-
-    pending = false;
-    timeout = nil;
-    globalCooldown = os.time();
-
-    -- If we just started a new roll, do some setup
-    if (act.en:contains(' Roll')) then
-        rollWindow = os.time() + 45;
-        activeRolls[2] = activeRolls[1];
-        activeRolls[1] = os.time();
-
-        currentRoll = act.en;
-    end
-end
-
--- Update job information and merit abilities
-local function updateJobInfo()
-    local player = GetPlayerEntity();
-    if not player then return; end
-    
-    local playerMgr = AshitaCore:GetMemoryManager():GetPlayer();
-    if not playerMgr then return; end
-    
-    mainjob = playerMgr:GetMainJob();
-    subjob = playerMgr:GetSubJob();
-    
-    -- Use manual merit ability settings
-    hasSnakeEye = settings.hasSnakeEye;
-    hasFold = settings.hasFold;
-end
-
-local function message(text)
-    print(chat.header(addon.name):append(chat.message(text)));
-end
-
--- ? Maybe strip this down, since it's only used to specifically check for
--- ? Buffs in english
-local function hasBuff(matchBuff)
-    local buffs = AshitaCore:GetMemoryManager():GetPlayer():GetBuffs();
-    if (type(matchBuff) == 'string') then
-        local matchText = string.lower(matchBuff);
-        for _, buff in pairs(buffs) do
-            local buffString = AshitaCore:GetResourceManager():GetString("buffs.names", buff)
-            if (buffString) then
-                
-                buffString = string.lower(buffString);
-                if (buffString == matchText) then
-                    return true;
-                end
-            end
-        end
-    elseif (type(matchBuff) == 'number') then
-        for _, buff in pairs(buffs) do
-            if (buff == matchBuff) then
-                return true;
-            end
-        end
-    end
-    return false;
-end
-
--- Amnesia, Impairment, Petrification, Stun, dead, charm, terror, sleep
-local function isIncapacitated()
-    return hasBuff(16)
-        or hasBuff(261)
-        or hasBuff(7)
-        or hasBuff(10)
-        or hasBuff(0)
-        or hasBuff(14)
-        or hasBuff(28)
-        or hasBuff(2);
-end
-
-local wakeUp;
-
-local function sleep()
-    asleep = true
-    lastActive = os.time();
-    ashita.tasks.once(10, function()
-        if (os.time() >= lastActive + 10) then
-            wakeUp();
-        end
-    end);
-end
-
-local function doNewRoll()
-    updateJobInfo(); -- Make sure we have current job info
-    
-
-    
-    -- Allow rolling in town (restriction removed)
-
-    -- Do not roll if disabled, or incapacitated
-    if (not enabled.value or isIncapacitated()) then
-        return;
-    end
-
-    -- Do not roll while hidden
-    if (hasBuff('sneak') or hasBuff('invisible')) then
-        return;
-    end
-    
-    -- Don't roll if not COR
-    if not (mainjob == 17 or subjob == 17) then
-        return;
-    end
-    
-    -- Check engaged only setting
-    if settings.engaged then
-        local player = GetPlayerEntity();
-        if not player or player.Status ~= 1 then -- 1 = engaged
-            return;
-        end
-    end
-    
-    -- Handle 'once' mode - check if we have both rolls (or just one for sub-COR)
-    if once then
-        local haveRoll1 = hasBuff(rolls[1].value);
-        local haveRoll2 = hasBuff(rolls[2].value);
-        
-        if subjob == 17 then
-            -- Sub-COR only gets one roll
-            if haveRoll1 then
-                message('Once mode: Roll complete (Sub-COR)');
-                once = false;
-                return;
-            end
-        else
-            -- Main COR gets both rolls
-            if haveRoll1 and haveRoll2 then
-                message('Once mode: Both rolls complete');
-                once = false;
-                return;
-            end
-        end
-    end
-
-    -- Enhanced bust handling with priority options
-    if (hasBuff('Bust')) then
-        if settings.bustrecovery and settings.randomdeal and recasts[196] == 0 then
-            -- Prioritize Random Deal for instant recovery
-            rollQ:push(rollsByName['Random Deal']);
-            return;
-        elseif (hasFold and recasts[198] == 0) then
-            -- Use Fold if available
-            rollQ:push(rollsByName['Fold']);
-            return;
-        elseif (settings.randomdeal and recasts[196] < 30) then
-            -- Fallback to Random Deal if coming off cooldown soon
-            rollQ:push(rollsByName['Random Deal']);
-            return;
-        end
-        -- If no bust recovery options available, wait for Phantom Roll cooldown
-        sleep();
-        return;
-    end
-
-
-
-    -- Check phantom roll recast first
-    if recasts[193] > 10 then
-        sleep();
-        return;
-    end
-
-    -- Enhanced Random Deal logic
-    if settings.randomdeal and mainjob == 17 and recasts[196] == 0 then
-        if settings.oldrandomdeal then
-            -- Old mode: Reset Snake Eye/Fold
-            if (hasSnakeEye and recasts[197] > 0) or (hasFold and recasts[198] > 0) then
-                rollQ:push(rollsByName['Random Deal']);
-                return;
-            end
-        else
-            -- New mode: Reset Crooked Cards
-            if recasts[96] > 0 and recasts[193] == 0 then
-                rollQ:push(rollsByName['Random Deal']);
-                return;
-            end
-        end
-    end
-
-    -- Party alert before rolling
-    if settings.partyalert and not hasBuff(rolls[1].value) and not hasBuff(rolls[2].value) then
-        AshitaCore:GetChatManager():QueueCommand(-1, '/p Rolling in 8 seconds, stay close <call12>');
-    end
-
-    -- Roll priority: Roll 1 first, then Roll 2 (unless sub-COR)
-    
-    if (not hasBuff(rolls[1].value)) then
-        -- Track roll time and crooked status for advanced logic
-        roll1RollTime = os.time();
-        rollCrooked = false;
-        
-        -- Use Crooked Cards if available and level 95+
-        if mainjob == 17 and AshitaCore:GetMemoryManager():GetPlayer():GetMainJobLevel() >= 95 and recasts[96] == 0 then
-            rollCrooked = true;
-            rollQ:push(rollsByName['Crooked Cards']);
-        end
-        rollQ:push(rollsByName[rolls[1].value]);
-    elseif (subjob ~= 17 and not (hasBuff(rolls[2].value) or hasBuff('Bust'))) then
-        -- Track roll time and crooked status for advanced logic
-        roll2RollTime = os.time();
-        rollCrooked = false;
-        
-        -- Roll 2 only if main COR (sub-COR gets only one roll)
-        if settings.crooked2 and mainjob == 17 and AshitaCore:GetMemoryManager():GetPlayer():GetMainJobLevel() >= 95 and recasts[96] == 0 then
-            rollCrooked = true;
-            rollQ:push(rollsByName['Crooked Cards']);
-        end
-        rollQ:push(rollsByName[rolls[2].value]);
-    else
-        sleep();
-    end
-end
-
-
-local function doubleUpFactory(rollData)
-    local action = rollsByName['Double-Up']:copy();
-    action.param = rollData.param;
-    return action;
-end
-
-local function snakeEye()
-    -- Skip Snake Eye logic for sub-COR
-    if subjob == 17 or not hasSnakeEye then
-        return false;
-    end
-    
-    local current = rollsByName[currentRoll];
-    local snakeEyesActive = hasBuff('Snake Eye');
-    local luckyNum = current.lucky;
-    local unluckyNum = current.unlucky;
-
-    if (snakeEyesActive) then
-        if (not waiting) then
-            globalCooldown = os.time() + 1;
-            return 'wait'
-        end
-        waiting = false;
-        rollQ:push(doubleUpFactory(current));
-        return true;
-    end
-
-    -- Advanced Snake Eye logic from AshitaRoller
-    if recasts[197] == 0 then
-        -- Gamble mode with bust immunity
-        if settings.gamble and lastRoll == 11 then
-            if rollNum == 10 or (rollNum == (luckyNum - 1) and rollCrooked) then
-                rollQ:push(rollsByName['Snake Eye']);
-                rollQ:push(doubleUpFactory(current));
-                return true;
-            end
-        else
-            -- Normal Snake Eye usage
-            if rollNum == 10 or (rollNum == (luckyNum - 1) and (not settings.gamble or rollCrooked)) then
-                rollQ:push(rollsByName['Snake Eye']);
-                rollQ:push(doubleUpFactory(current));
-                return true;
-            elseif (not hasFold or recasts[198] > 0 or (rollCrooked and not settings.gamble)) and rollNum == unluckyNum then
-                rollQ:push(rollsByName['Snake Eye']);
-                rollQ:push(doubleUpFactory(current));
-                return true;
-            elseif rollNum + 1 ~= unluckyNum and os.time() - roll1RollTime < 240 and os.time() - roll2RollTime < 240 then
-                -- End-game optimization: use Snake Eye if next roll won't be unlucky
-                rollQ:push(rollsByName['Snake Eye']);
-                rollQ:push(doubleUpFactory(current));
-                return true;
-            end
-        end
-        
-        -- Fallback to Random Deal if Snake Eye conditions not met
-        if settings.randomdeal and recasts[196] == 0 and randomDeal.value then
-            rollQ:push(rollsByName['Random Deal']);
-            return true;
-        end
-    end
-    
-    return false;
-end
-
-local function finishRoll()
-    message('Finished rolling: ' .. currentRoll .. ' final roll: ' .. rollNum);
-    lastRoll = rollNum;
-    rollWindow = nil;
-end;
-
--- Advanced double-up logic from AshitaRoller
-local function shouldDoubleUp()
-    local current = rollsByName[currentRoll];
-    local rollID = current.param;
-    local luckyNum = current.lucky;
-    local unluckyNum = current.unlucky;
-    
-    -- Sub-COR simplified strategy: double up if roll < 5
-    if subjob == 17 then
-        if rollNum < 5 then
-            return true, "Sub-COR: Roll < 5";
-        end
-        return false, "Sub-COR: Roll >= 5, stopping";
-    end
-    
-    -- Main COR advanced strategy (from AshitaRoller)
-    if mainjob == 17 then
-        -- Gamble mode: if last roll was 11 (bust immune), be aggressive
-        if settings.gamble and lastRoll == 11 then
-            if hasSnakeEye and recasts[197] == 0 and (rollNum == 10 or (rollNum == (luckyNum - 1) and rollCrooked)) then
-                return false, "Gamble: Using Snake Eye for 11 or crooked lucky";
-            else
-                return true, "Gamble: Immune to bust, rolling for double 11";
-            end
-        else
-            -- Normal strategy
-            if hasSnakeEye and recasts[197] == 0 and (rollNum == 10 or (rollNum == (luckyNum - 1) and (not settings.gamble or rollCrooked))) then
-                return false, "Using Snake Eye for lucky or 11";
-            elseif hasSnakeEye and recasts[197] == 0 and (not hasFold or recasts[198] > 0 or (rollCrooked and not settings.gamble)) and rollNum == unluckyNum then
-                return false, "Using Snake Eye to remove unlucky";
-            elseif hasFold and recasts[198] == 0 and (not rollCrooked or settings.gamble) then
-                return true, "Safe to risk: have Fold and roll not crooked";
-            elseif rollNum < 6 then
-                return true, "Roll < 6, continuing";
-            elseif hasSnakeEye and recasts[197] == 0 and rollNum + 1 ~= unluckyNum and 
-                   os.time() - roll1RollTime < 240 and os.time() - roll2RollTime < 240 then
-                return false, "End-game Snake Eye: rollNum+1 not unlucky, Snake Eye available";
-            else
-                return false, "Stopping: conditions not met";
-            end
-        end
-    end
-    
-    return false, "Unknown job configuration";
-end
-
-local function doubleUp()
-    local shouldDouble, reason = shouldDoubleUp();
-    if shouldDouble then
-        local current = rollsByName[currentRoll];
-        rollQ:push(doubleUpFactory(current));
-        return true;
-    end
-    return false;
-end
-
-
-
-local function rollStrategy()
-    recasts = getAbilityRecasts();
-
-    -- If we do not have an open window/are satisfied with the current number
-    if (not rollWindow) then
-        return doNewRoll();
-    end
-
-    if (rollNum == 11 or rollNum == rollsByName[currentRoll].lucky) then
-        rollWindow = nil;
-
-        -- TODO: can we start planning the next roll here?
-        return;
-    end
-
-    local snakeEyeResult = snakeEye();
-
-    if (snakeEyeResult == 'wait') then
-        waiting = true;
-        return;
-    end
-
-    if (not snakeEyeResult) then
-        if (not doubleUp()) then
-            -- If we decide not to double up, close the roll
-            finishRoll()
-        end
-    end
-end
-
-local function doNext()
-    recasts = getAbilityRecasts();
-
-    local cd = recasts[rollQ:peek().id];
-
-    local abilityName = rollQ:peek().en;
-
-    if (abilityName == nil) then
-        message('Ability Name nil');
-        return;
-    end
-
-    if (cd == 0) then
-        local command = ('/ja "%s" <me>'):format(abilityName);
-        message('command: ' .. command);
-        AshitaCore:GetChatManager():QueueCommand(-1, command);
-        pending = true;
-        timeout = os.time();
-    elseif ((rollWindow and os.time() + cd > rollWindow)
-            or (not rollWindow and cd > 10)) then
-        rollQ = Q {};
-        rollStrategy()
-    end
-end
-
-local function actionTimeout()
-    rollQ = Q {};
-    rollStrategy();
-    pending = false;
-    timeout = nil;
-end
-
-local function mainLoop()
-    updateJobInfo(); -- Update job info regularly
-    
-    if (not enabled.value) then
-        return;
-    end
-    
-    -- Wake up if we're enabled but asleep
-    if asleep then
-        asleep = false;
-    end
-
-    local now = os.time();
-    
-
-
-    if (now - globalCooldown < 1.5) then
-        return;
-    end
-
-    if (pending and now - timeout > 5) then
-        actionTimeout();
-    end
-
-    if (rollWindow and rollWindow < os.time()) then
-        rollQ = Q {};
-        pending = false;
-        finishRoll();
-    end
-
-    if (rollQ:isEmpty()) then
-        rollStrategy();
-    elseif (not pending) then
-        doNext();
-    end
-end
-
-wakeUp = function()
-    if (asleep) then
-        asleep = false;
-    end
-end
-
--- Start the main loop when addon loads
-ashita.events.register('d3d_present', 'roller_main_loop', mainLoop);
-
--- Apply a preset roll combination
-local function applyPreset(presetName)
-    local preset = presets[presetName:lower()];
-    if preset then
-        rolls[1]:set(preset[1]);
-        rolls[2]:set(preset[2]);
-        message(('Preset "%s" applied: %s + %s'):format(presetName, preset[1], preset[2]));
-        wakeUp();
-        return true;
-    end
-    return false;
-end
-
--- ImGui rendering function
+-- ImGui rendering
 local function renderImGuiMenu()
-    if not showImGuiMenu[1] then
-        return;
-    end
-
-    -- Set window position on first run
-    if imguiFirstRun then
-        imgui.SetNextWindowPos({ settings.imguiMenuX, settings.imguiMenuY }, ImGuiCond_FirstUseEver);
-        imgui.SetNextWindowSize({ 420, 600 }, ImGuiCond_FirstUseEver);
-        imguiFirstRun = false;
-    end
-
-    if imgui.Begin('J-Roller Enhanced Settings', showImGuiMenu, ImGuiWindowFlags_AlwaysAutoResize) then
-        
-        -- === BASIC CONTROLS ===
-        if imgui.CollapsingHeader('Basic Controls', ImGuiTreeNodeFlags_DefaultOpen) then
-            
-            -- Enable/Disable
-            local enabledValue = { enabled.value };
-            if imgui.Checkbox('Auto-Rolling Enabled', enabledValue) then
-                enabled:set(enabledValue[1]);
-            end
-            
-            imgui.Separator();
-            
-            -- Current Mode Display
-            updateJobInfo();
-            local modeText = '';
-            if mainjob == 17 then
-                modeText = 'Mode: Main Job COR (Full Features)';
-            elseif subjob == 17 then
-                modeText = 'Mode: Sub Job COR (Single Roll Only)';
-            else
-                modeText = 'Mode: Not COR (No Rolling Available)';
-            end
-            imgui.TextColored({ 0.7, 0.9, 1.0, 1.0 }, modeText);
-            
-            imgui.Separator();
-            
-            -- Roll Selection
-            imgui.Text('Roll 1:');
-            imgui.SameLine();
-            imgui.SetNextItemWidth(200);
-            if imgui.BeginCombo('##roll1', rolls[1].value) then
-                for _, rollName in ipairs(rolls[1]) do
-                    local isSelected = (rolls[1].value == rollName);
-                    if imgui.Selectable(rollName, isSelected) then
-                        rolls[1]:set(rollName);
-                    end
-                    if isSelected then
-                        imgui.SetItemDefaultFocus();
-                    end
-                end
-                imgui.EndCombo();
-            end
-            
-            imgui.Text('Roll 2:');
-            imgui.SameLine();
-            imgui.SetNextItemWidth(200);
-            
-            if subjob == 17 then
-                imgui.Text('N/A (Sub COR)');
-            else
-                if imgui.BeginCombo('##roll2', rolls[2].value) then
-                    for _, rollName in ipairs(rolls[2]) do
-                        local isSelected = (rolls[2].value == rollName);
-                        if imgui.Selectable(rollName, isSelected) then
-                            rolls[2]:set(rollName);
-                        end
-                        if isSelected then
-                            imgui.SetItemDefaultFocus();
-                        end
-                    end
-                    imgui.EndCombo();
-                end
-            end
-            
-            imgui.Separator();
-            
-            -- Once Mode
-            if imgui.Button('Roll Once') then
-                message('Will roll until both rolls are up, then stop.');
-                once = true;
-                enabled:set(true);
-            end
-            imgui.SameLine();
-            imgui.TextColored({ 0.8, 0.8, 0.8, 1.0 }, '(Roll both rolls once then stop)');
-        end
-        
-        -- === QUICK PRESETS ===
-        if imgui.CollapsingHeader('Quick Presets', ImGuiTreeNodeFlags_DefaultOpen) then
-            
-            -- Combat Presets
-            imgui.TextColored({ 1.0, 0.8, 0.6, 1.0 }, 'Combat:');
-            if imgui.Button('TP (SAM+FTR)') then applyPreset('tp'); end
-            imgui.SameLine();
-            if imgui.Button('Accuracy (SAM+HUN)') then applyPreset('acc'); end
-            imgui.SameLine();
-            if imgui.Button('WS (CHA+FTR)') then applyPreset('ws'); end
-            
-            if imgui.Button('Melee (SAM+CHA)') then applyPreset('melee'); end
-            
-            imgui.Separator();
-            
-            -- Magic Presets
-            imgui.TextColored({ 0.8, 0.6, 1.0, 1.0 }, 'Magic:');
-            if imgui.Button('Nuke (WIZ+WAR)') then applyPreset('nuke'); end
-            imgui.SameLine();
-            if imgui.Button('Magic (WIZ+WAR)') then applyPreset('magic'); end
-            imgui.SameLine();
-            if imgui.Button('Burst (WIZ+WAR)') then applyPreset('burst'); end
-            
-            imgui.Separator();
-            
-            -- Pet Presets
-            imgui.TextColored({ 0.6, 1.0, 0.8, 1.0 }, 'Pet:');
-            if imgui.Button('Pet (COM+BEA)') then applyPreset('pet'); end
-            imgui.SameLine();
-            if imgui.Button('Pet Phy (COM+BEA)') then applyPreset('petphy'); end
-            
-            if imgui.Button('Pet Acc (COM+DRA)') then applyPreset('petacc'); end
-            imgui.SameLine();
-            if imgui.Button('Pet Nuke (PUP+COM)') then applyPreset('petnuke'); end
-            
-            imgui.Separator();
-            
-            -- Utility Presets
-            imgui.TextColored({ 1.0, 1.0, 0.6, 1.0 }, 'Utility:');
-            if imgui.Button('EXP (COR+DAN)') then applyPreset('exp'); end
-            imgui.SameLine();
-            if imgui.Button('Speed (BOL+BOL)') then applyPreset('speed'); end
-        end
-        
-        -- === ADVANCED SETTINGS ===
-        if imgui.CollapsingHeader('Advanced Settings') then
-            
-            -- Combat Settings
-            imgui.TextColored({ 1.0, 0.8, 0.6, 1.0 }, 'Combat Options:');
-            
-            local engagedValue = { settings.engaged };
-            if imgui.Checkbox('Only Roll While Engaged', engagedValue) then
-                settings.engaged = engagedValue[1];
-                libSettings.save();
-            end
-            
-            local partyalertValue = { settings.partyalert };
-            if imgui.Checkbox('Alert Party Before Rolling', partyalertValue) then
-                settings.partyalert = partyalertValue[1];
-                libSettings.save();
-            end
-            
-            imgui.Separator();
-            
-            -- Ability Usage Settings
-            imgui.TextColored({ 0.8, 0.6, 1.0, 1.0 }, 'Ability Usage:');
-            
-            local crooked2Value = { settings.crooked2 };
-            if imgui.Checkbox('Use Crooked Cards on Roll 2', crooked2Value) then
-                settings.crooked2 = crooked2Value[1];
-                libSettings.save();
-            end
-            
-            local randomdealValue = { settings.randomdeal };
-            if imgui.Checkbox('Use Random Deal', randomdealValue) then
-                settings.randomdeal = randomdealValue[1];
-                libSettings.save();
-            end
-            
-            local oldrandomdealValue = { settings.oldrandomdeal };
-            if imgui.Checkbox('Random Deal: Reset Snake Eye/Fold (vs Crooked)', oldrandomdealValue) then
-                settings.oldrandomdeal = oldrandomdealValue[1];
-                libSettings.save();
-            end
-            
-            imgui.Separator();
-            
-            -- Advanced Rolling Options
-            imgui.TextColored({ 1.0, 0.6, 0.6, 1.0 }, 'Advanced Rolling:');
-            
-            local gambleValue = { settings.gamble };
-            if imgui.Checkbox('Gamble Mode (Exploit Bust Immunity)', gambleValue) then
-                settings.gamble = gambleValue[1];
-                libSettings.save();
-            end
-            
-            local bustrecoveryValue = { settings.bustrecovery };
-            if imgui.Checkbox('Prioritize Random Deal for Bust Recovery', bustrecoveryValue) then
-                settings.bustrecovery = bustrecoveryValue[1];
-                libSettings.save();
-            end
-        end
-        
-        -- === MERIT ABILITIES ===
-        if imgui.CollapsingHeader('Merit Abilities') then
-            
-            imgui.TextColored({ 0.6, 1.0, 1.0, 1.0 }, 'Manual Merit Ability Control:');
-            
-            local hasSnakeEyeValue = { settings.hasSnakeEye };
-            if imgui.Checkbox('Snake Eye Enabled', hasSnakeEyeValue) then
-                settings.hasSnakeEye = hasSnakeEyeValue[1];
-                libSettings.save();
-            end
-            
-            local hasFoldValue = { settings.hasFold };
-            if imgui.Checkbox('Fold Enabled', hasFoldValue) then
-                settings.hasFold = hasFoldValue[1];
-                libSettings.save();
-            end
-            
-            imgui.Separator();
-            imgui.TextColored({ 0.8, 0.8, 0.8, 1.0 }, 'Note: These override auto-detection.');
-        end
-        
-        -- === STATUS & DEBUG ===
-        if imgui.CollapsingHeader('Status & Debug') then
-            
-            -- Current Status
-            imgui.TextColored({ 0.6, 1.0, 0.6, 1.0 }, 'Current Status:');
-            local status = asleep and 'Sleeping' or rollQ:peek() and rollQ:peek().en or 'Idle';
-            if enabled.value and status == 'Idle' then
-                status = 'Enabled';
-            end
-            imgui.Text('Status: ' .. status);
-            
-            imgui.Text('Roll 1: ' .. rolls[1].value);
-            if subjob == 17 then
-                imgui.Text('Roll 2: DISABLED (Sub COR)');
-            else
-                imgui.Text('Roll 2: ' .. rolls[2].value);
-            end
-            
-            imgui.Separator();
-            
-            -- Debug Info
-            imgui.TextColored({ 1.0, 0.8, 0.6, 1.0 }, 'Debug Information:');
-            imgui.Text('Main Job: ' .. tostring(mainjob));
-            imgui.Text('Sub Job: ' .. tostring(subjob));
-            imgui.Text('Snake Eye Available: ' .. tostring(hasSnakeEye));
-            imgui.Text('Fold Available: ' .. tostring(hasFold));
-            imgui.Text('Roll Window: ' .. tostring(rollWindow or 'None'));
-            imgui.Text('Pending Action: ' .. tostring(pending));
-            
-            if imgui.Button('Show Debug in Chat') then
-                updateJobInfo();
-                message('=== Debug Info ===');
-                message('Main Job: ' .. tostring(mainjob));
-                message('Sub Job: ' .. tostring(subjob));
-                message('Snake Eye Enabled: ' .. tostring(hasSnakeEye));
-                message('Fold Enabled: ' .. tostring(hasFold));
-                message('Settings Snake Eye: ' .. tostring(settings.hasSnakeEye));
-                message('Settings Fold: ' .. tostring(settings.hasFold));
-            end
-        end
-        
-        -- === HELP ===
-        if imgui.CollapsingHeader('Help & Commands') then
-            imgui.TextColored({ 1.0, 1.0, 0.6, 1.0 }, 'Chat Commands:');
-            imgui.Text('/roller - Show status');
-            imgui.Text('/roller start/stop - Enable/disable');
-            imgui.Text('/roller roll1/roll2 <n> - Set roll');
-            imgui.Text('/roller <preset> - Apply preset');
-            imgui.Text('/roller menu - Toggle this menu');
-            imgui.Text('/roller help - Show all commands');
-            
-            if imgui.Button('Show Help in Chat') then
-                message('=== J-Roller Enhanced Commands ===');
-                message('/roller - Show status');
-                message('/roller start/stop - Enable/disable rolling');
-                message('/roller roll1/roll2 <n> - Set roll');
-                message('/roller <preset> - Apply preset (tp, acc, ws, nuke, pet, etc.)');
-                message('/roller engaged on/off - Only roll while engaged');
-                message('/roller crooked2 on/off - Use Crooked Cards on roll 2');
-                message('/roller randomdeal on/off - Use Random Deal');
-                message('/roller partyalert on/off - Alert party before rolling');
-                message('/roller gamble on/off - Gamble for double 11s');
-                        message('/roller bustrecovery on/off - Prioritize Random Deal for bust recovery');
-        message('/roller once - Roll both rolls once then stop');
-        message('/roller snakeeye/fold on/off - Merit ability settings');
-        message('/roller menu - Toggle ImGui settings menu');
-        message('/roller debug - Show debug information');
-            end
-        end
-        
-        -- Save window position
-        local windowPosX, windowPosY = imgui.GetWindowPos();
-        if windowPosX ~= settings.imguiMenuX or windowPosY ~= settings.imguiMenuY then
-            settings.imguiMenuX = windowPosX;
-            settings.imguiMenuY = windowPosY;
-            libSettings.save();
-        end
-    end
-    imgui.End();
+    stateManager:updateJobInfo();
+    
+    -- Update ImGui state
+    imguiInterface:updateState({
+        mainjob = stateManager.mainjob,
+        subjob = stateManager.subjob,
+        hasSnakeEye = stateManager.hasSnakeEye,
+        hasFold = stateManager.hasFold,
+        asleep = asleep[1],
+        rollQ = rollQ,
+        rollWindow = rollWindow[1],
+        pending = pending[1],
+    });
+    
+    imguiInterface:render();
 end
 
--- Register ImGui rendering
+-- Register main loop and ImGui rendering
+ashita.events.register('d3d_present', 'roller_main_loop', mainLoop);
 ashita.events.register('d3d_present', 'roller_imgui_render', renderImGuiMenu);
 
+-- Packet handling for action confirmation and roll detection
 local ignoreIds = T { 177, 178, 96, 133 };
 
 ashita.events.register('packet_in', 'roller_action_cb', function(e)
@@ -964,18 +396,14 @@ ashita.events.register('packet_in', 'roller_action_cb', function(e)
     -- Determine if action is rolling related
     local param = ashita.bits.unpack_be(e.data_raw, 0, 86, 16);
 
-    -- print('param: ' .. param)
-    -- print('pending param: ' .. rollQ:peek().param);
-    -- print('pending: ' .. (pending and 'true' or 'false'));
-    ---@diagnostic disable-next-line: need-check-nil
     if (not rollsByParam[param]) then return; end
 
-    if (pending and rollQ:peek() and param == rollQ:peek().param) then
+    if (pending[1] and rollQ:peek() and param == rollQ:peek().param) then
         -- If the action matches the top of the queue, action complete
         message('action complete: ' .. rollQ:peek().en);
         actionComplete();
     elseif (not rollQ:isEmpty()) then
-        -- If the action does not match, cleare queue and restrategize
+        -- If the action does not match, clear queue and restrategize
         rollQ = Q {};
         rollStrategy();
     end
@@ -983,290 +411,47 @@ ashita.events.register('packet_in', 'roller_action_cb', function(e)
     if (ignoreIds:contains(param)) then return; end
 
     -- Update roll number
-    rollNum = ashita.bits.unpack_be(e.data_raw, 0, 213, 17);
-    message('Rolled: ' .. tostring(rollNum));
+    rollNum[1] = ashita.bits.unpack_be(e.data_raw, 0, 213, 17);
+    message('Rolled: ' .. tostring(rollNum[1]));
 
     -- Start over if we busted
-    if (rollNum == 12) then -- Bust
+    if (rollNum[1] == 12) then -- Bust
         finishRoll();
         rollQ = Q {};
         rollStrategy();
     end
 end);
 
-local startCommands = T { 'start', 'go', 'on', 'enable' };
-local stopCommands = T { 'stop', 'quit', 'off', 'disable' };
-
-local function setRoll(slot, text)
-    local name = (function(inputText)
-        local bestMatch = nil;
-        local bestMatchLength = 0;
-        
-        -- First pass: look for exact matches
-        for k, v in pairs(fuzzyNames) do
-            for _, j in ipairs(v) do
-                if inputText == j then
-                    return k;  -- Exact match always wins
-                end
-            end
-        end
-        
-        -- Second pass: look for longest startswith match
-        for k, v in pairs(fuzzyNames) do
-            for _, j in ipairs(v) do
-                if inputText:startswith(j) and string.len(j) > bestMatchLength then
-                    bestMatch = k;
-                    bestMatchLength = string.len(j);
-                end
-            end
-        end
-        
-        return bestMatch;
-    end)(text:lower());
-
-    if (name) then
-        if (rolls[slot].value == name) then
-            message(('Roll %i is currently: %s'):format(slot, rolls[slot].value));
-            -- Nothing needs to be done
-            return;
-        end
-
-        if (rolls[slot % 2 + 1].value == name) then
-            rolls[slot % 2 + 1]:set(rolls[slot].value);
-        end
-
-        message(('Roll %i set to %s'):format(slot, name));
-        rolls[slot]:set(name);
-        wakeUp();
-    else
-        message(('Roll %i is currently: %s'):format(slot, rolls[slot].value));
-    end
-end
-
-
-
+-- Command handling
 enabled.on_change:register(function()
     rollQ = Q {};
     -- Clear any pending actions when toggling
-    pending = false;
-    timeout = nil;
+    pending[1] = false;
+    timeout[1] = nil;
 end);
 
 ashita.events.register('command', 'command_cb', function(e)
-    local args = e.command:args();
-    if (#args == 0 or not args[1]:any('/roller')) then
-        return;
-    end
-
-    args:remove(1);
-
-    -- Block all related commands..
-    e.blocked = true;
-
-    local cmd = args[1] or '';
-    if cmd then 
-        cmd = cmd:lower(); 
-        args:remove(1);
-    end
-
-    -- Handle no command or status display
-    if not cmd or cmd == '' or cmd == 'status' or cmd == 'rolls' then
-        updateJobInfo();
-        if enabled.value then
-            message('Automatic Rolling is ON.');
-        else
-            message('Automatic Rolling is OFF.');
-        end
-        
-        if mainjob == 17 then
-            message('Mode: Main Job COR (Full Features)');
-        elseif subjob == 17 then
-            message('Mode: Sub Job COR (Limited Features - Single Roll Only)');
-        else
-            message('Mode: Not COR (No Rolling Available)');
-        end
-        
-        message('Roll 1: ' .. rolls[1].value);
-        if subjob == 17 then
-            message('Roll 2: DISABLED (Sub COR only allows one roll)');
-        else
-            message('Roll 2: ' .. rolls[2].value);
-        end
-        return;
-    end
-
-    -- Start/Stop commands
-    if (startCommands:contains(cmd)) then
-        message('Rolling enabled.');
-        enabled:set(true);
-    elseif (stopCommands:contains(cmd)) then
-        message('Rolling disabled.');
-        enabled:set(false);
-        once = false; -- Reset once mode
-        
-    -- Preset commands
-    elseif presets[cmd] then
-        applyPreset(cmd);
-        
-    -- Roll setting commands
-    elseif (cmd == 'roll1') then
-        if (#args > 0) then
-            setRoll(1, args:concat(' '));
-        else
-            message(('Roll 1 is currently: %s'):format(rolls[1].value));
-        end
-    elseif (cmd == 'roll2') then
-        if (#args > 0) then
-            setRoll(2, args:concat(' '));
-        else
-            message(('Roll 2 is currently: %s'):format(rolls[2].value));
-        end
-        
-    -- Settings commands
-    elseif (cmd == 'engaged') then
-        local arg = args[1] and args[1]:lower();
-        if not arg then
-            settings.engaged = not settings.engaged;
-        elseif arg == 'on' or arg == 'true' then
-            settings.engaged = true;
-        elseif arg == 'off' or arg == 'false' then
-            settings.engaged = false;
-        end
-        message('Engaged Only: ' .. (settings.engaged and 'On' or 'Off'));
-        libSettings.save();
-        
-    elseif (cmd == 'crooked2') then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
-            settings.crooked2 = true;
-        elseif arg == 'off' then
-            settings.crooked2 = false;
-        end
-        message('Crooked Cards on Roll 2: ' .. (settings.crooked2 and 'On' or 'Off'));
-        libSettings.save();
-        
-    elseif (cmd == 'randomdeal') then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
-            settings.randomdeal = true;
-        elseif arg == 'off' then
-            settings.randomdeal = false;
-        end
-        message('Random Deal: ' .. (settings.randomdeal and 'On' or 'Off'));
-        libSettings.save();
-        
-    elseif (cmd == 'oldrandomdeal') then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
-            settings.oldrandomdeal = true;
-        elseif arg == 'off' then
-            settings.oldrandomdeal = false;
-        end
-        local mode = settings.oldrandomdeal and 'Fold/Snake Eye' or 'Crooked Cards';
-        message('Random Deal Mode: ' .. mode);
-        libSettings.save();
-        
-    elseif (cmd == 'partyalert') then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
-            settings.partyalert = true;
-        elseif arg == 'off' then
-            settings.partyalert = false;
-        end
-        message('Party Alert: ' .. (settings.partyalert and 'On' or 'Off'));
-        libSettings.save();
-        
-    elseif (cmd == 'gamble') then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
-            settings.gamble = true;
-        elseif arg == 'off' then
-            settings.gamble = false;
-        end
-        message('Gamble Mode: ' .. (settings.gamble and 'On' or 'Off'));
-        libSettings.save();
-        
-    elseif (cmd == 'bustrecovery') then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
-            settings.bustrecovery = true;
-        elseif arg == 'off' then
-            settings.bustrecovery = false;
-        end
-        message('Bust Recovery Priority: ' .. (settings.bustrecovery and 'Random Deal First' or 'Fold First'));
-        libSettings.save();
-        
-    elseif (cmd == 'once') then
-        message('Will roll until both rolls are up, then stop.');
-        once = true;
-        
-    elseif (cmd == 'snakeeye') then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
-            settings.hasSnakeEye = true;
-        elseif arg == 'off' then
-            settings.hasSnakeEye = false;
-        else
-            updateJobInfo();
-            message('Snake Eye: ' .. (hasSnakeEye and 'Enabled' or 'Disabled'));
-            return;
-        end
-        message('Snake Eye: ' .. (settings.hasSnakeEye and 'Enabled' or 'Disabled'));
-        libSettings.save();
-        
-    elseif (cmd == 'fold') then
-        local arg = args[1] and args[1]:lower();
-        if arg == 'on' then
-            settings.hasFold = true;
-        elseif arg == 'off' then
-            settings.hasFold = false;
-        else
-            updateJobInfo();
-            message('Fold: ' .. (hasFold and 'Enabled' or 'Disabled'));
-            return;
-        end
-        message('Fold: ' .. (settings.hasFold and 'Enabled' or 'Disabled'));
-        libSettings.save();
-        
-    elseif (cmd == 'debug') then
-        updateJobInfo();
-        message('=== Debug Info ===');
-        message('Main Job: ' .. tostring(mainjob));
-        message('Sub Job: ' .. tostring(subjob));
-        message('Snake Eye Enabled: ' .. tostring(hasSnakeEye));
-        message('Fold Enabled: ' .. tostring(hasFold));
-        message('Settings Snake Eye: ' .. tostring(settings.hasSnakeEye));
-        message('Settings Fold: ' .. tostring(settings.hasFold));
-    elseif (cmd == 'menu') then
-        showImGuiMenu[1] = not showImGuiMenu[1];
-        settings.showImGuiMenu = showImGuiMenu[1];
-        libSettings.save();
-        message('ImGui Menu: ' .. (showImGuiMenu[1] and 'Shown' or 'Hidden'));
-    elseif (cmd == 'help') then
-        message('=== J-Roller Enhanced Commands ===');
-        message('/roller - Show status');
-        message('/roller start/stop - Enable/disable rolling');
-        message('/roller roll1/roll2 <name> - Set roll');
-        message('/roller <preset> - Apply preset (tp, acc, ws, nuke, pet, etc.)');
-        message('/roller engaged on/off - Only roll while engaged');
-        message('/roller crooked2 on/off - Use Crooked Cards on roll 2');
-        message('/roller randomdeal on/off - Use Random Deal');
-        message('/roller partyalert on/off - Alert party before rolling');
-        message('/roller gamble on/off - Gamble for double 11s');
-        message('/roller bustrecovery on/off - Prioritize Random Deal for bust recovery');
-        message('/roller once - Roll both rolls once then stop');
-        message('/roller snakeeye/fold on/off - Merit ability settings');
-        message('/roller menu - Toggle ImGui settings menu');
-        message('/roller debug - Show debug information');
-    else
-        message('Unknown command: ' .. cmd .. '. Use /roller help for commands.');
+    -- Update command handler state
+    stateManager:updateJobInfo();
+    commandHandler:updateState({
+        mainjob = stateManager.mainjob,
+        subjob = stateManager.subjob,
+        hasSnakeEye = stateManager.hasSnakeEye,
+        hasFold = stateManager.hasFold,
+        once = once[1],
+    });
+    
+    -- Process command
+    local handled = commandHandler:processCommand(e);
+    if handled then
+        e.blocked = true;
+        sleepManager.wakeUp(); -- Wake up after any command
     end
 end)
 
-buffLoss:register(wakeUp);
+-- Event handlers
+buffLoss:register(sleepManager.wakeUp);
 zoneChange:register(function()
     enabled:set(false);
-    sleep();
+    sleepManager.sleep();
 end)
-
--- TODO: Zone change and lose buff events
