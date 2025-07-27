@@ -198,7 +198,7 @@ end
 
 -- Main command processing function
 function CommandHandler:processCommand(command)
-    local args = command:args();
+    local args = command.command:lower():args();
     if (#args == 0 or not args[1]:any('/roller')) then
         return false; -- Not our command
     end
