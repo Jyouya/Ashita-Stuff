@@ -3,7 +3,7 @@ local function getAbilityRecasts()
     local res = T {};
     for i = 0, 31 do
         local id = recastManager:GetAbilityTimerId(i);
-        if (not res[id]) then 
+        if (not res[id]) then
             res[id] = recastManager:GetAbilityTimer(i);
         end
     end

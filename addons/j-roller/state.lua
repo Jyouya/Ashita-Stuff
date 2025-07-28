@@ -6,14 +6,14 @@ function StateManager.new(dependencies)
     local self = {
         -- Dependencies from main module
         settings = dependencies.settings,
-        
+
         -- Job detection and merit abilities
         mainjob = nil,
         subjob = nil,
         hasSnakeEye = false,
         hasFold = false,
     };
-    
+
     setmetatable(self, { __index = StateManager });
     return self;
 end
@@ -22,13 +22,13 @@ end
 function StateManager:updateJobInfo()
     local player = GetPlayerEntity();
     if not player then return; end
-    
+
     local playerMgr = AshitaCore:GetMemoryManager():GetPlayer();
     if not playerMgr then return; end
-    
+
     self.mainjob = playerMgr:GetMainJob();
     self.subjob = playerMgr:GetSubJob();
-    
+
     -- Merit abilities are only available to main job COR
     if self.mainjob == 17 then
         -- Main job COR: use manual merit ability settings
@@ -61,7 +61,6 @@ function StateManager.hasBuff(matchBuff)
         for _, buff in pairs(buffs) do
             local buffString = AshitaCore:GetResourceManager():GetString("buffs.names", buff)
             if (buffString) then
-                
                 buffString = string.lower(buffString);
                 if (buffString == matchText) then
                     return true;
@@ -101,7 +100,7 @@ end
 -- Sleep management helper
 function StateManager.createSleepManager(lastActiveRef, asleepRef)
     local sleepManager = {};
-    
+
     function sleepManager.sleep()
         asleepRef[1] = true;
         lastActiveRef[1] = os.time();
@@ -111,13 +110,13 @@ function StateManager.createSleepManager(lastActiveRef, asleepRef)
             end
         end);
     end
-    
+
     function sleepManager.wakeUp()
         if (asleepRef[1]) then
             asleepRef[1] = false;
         end
     end
-    
+
     return sleepManager;
 end
 
@@ -165,6 +164,4 @@ function StateManager.createFinishRollHandler(message, lastRoll, rollWindow, rol
     end
 end
 
-
-
-return StateManager; 
+return StateManager;

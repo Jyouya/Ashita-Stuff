@@ -312,7 +312,7 @@ _meta.M.__methods['set'] = function(m, val)
             end
 
             if not found then
-                error("Unknown mode value: " .. tostring(val), 2)
+                error("Unknown mode value for " .. tostring(m.description) .. ": " .. tostring(val), 2)
             end
         end
     elseif m._track._type == 'string' then
@@ -399,7 +399,7 @@ _meta.M.__methods['map'] = function(m, fn)
 end
 
 _meta.M.__methods['equals'] = function(m, literal)
-    return function() 
+    return function()
         return m.value == literal
     end
 end

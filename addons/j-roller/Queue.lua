@@ -2,7 +2,7 @@ require('sugar');
 
 local Q = T {};
 
-function Q:peek() 
+function Q:peek()
     return Q[self.front];
 end
 
@@ -39,4 +39,3 @@ return function(t)
 
     return setmetatable(t, { __index = Q });
 end
-

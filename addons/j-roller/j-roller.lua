@@ -1,4 +1,4 @@
-addon.name    = 'J-Roller Enhanced';
+addon.name    = 'J-Roller';
 addon.author  = 'Jyouya - Enhancements by Palmer (Zodiarchy @ Asura)';
 addon.version = '2.0';
 addon.desc    = 'The ultimate Corsair auto-roller with advanced features';
@@ -7,6 +7,7 @@ require('table');
 local Q = require('Queue');
 local M = require('J-Mode');
 local GUI = require('J-GUI');
+local ffi = require('ffi');
 local chat = require('chat');
 local getAbilityRecasts = require('getAbilityRecasts')
 local buffLoss = require('events.buffChange').buffLoss;
@@ -38,7 +39,7 @@ local defaultSettings = T {
         'Warlock\'s Roll',
     },
     -- Enhanced AshitaRoller features
-    engaged = false,        -- Only roll while engaged
+    engaged = false,       -- Only roll while engaged
     crooked2 = false,      -- Save Crooked Cards for roll 2 only (vs normal: use on roll 1 + reset)
     randomdeal = true,     -- Use Random Deal
     oldrandomdeal = false, -- Use Random Deal for Snake/Fold vs Crooked
@@ -122,7 +123,8 @@ local function setOnce(value)
 end
 
 -- Action handlers
-local actionComplete = StateManager.createActionCompleteHandler(rollQ, rollWindow, activeRolls, currentRoll, globalCooldown);
+local actionComplete = StateManager.createActionCompleteHandler(rollQ, rollWindow, activeRolls, currentRoll,
+    globalCooldown);
 local finishRoll = StateManager.createFinishRollHandler(message, lastRoll, rollWindow, rollNum, currentRoll);
 
 -- Initialize rolling strategy
@@ -152,7 +154,7 @@ end
 -- Enhanced roll strategy with state sync
 local function rollStrategy()
     stateManager:updateJobInfo();
-    
+
     -- Sync state with strategy module
     rollingStrategy:updateState({
         mainjob = stateManager.mainjob,
@@ -169,7 +171,7 @@ local function rollStrategy()
         roll2RollTime = roll2RollTime[1],
         recasts = recasts,
     });
-    
+
     -- Execute strategy
     if rollWindow[1] then
         rollingStrategy:executeRollStrategy(finishRoll);
@@ -178,17 +180,17 @@ local function rollStrategy()
         if shouldRoll and once[1] then
             local haveRoll1 = StateManager.hasBuff(rolls[1].value);
             local haveRoll2 = StateManager.hasBuff(rolls[2].value);
-            
+
             if stateManager.subjob == 17 then
-            if haveRoll1 then
+                if haveRoll1 then
                     setOnce(false);
-            end
-        else
-            if haveRoll1 and haveRoll2 then
+                end
+            else
+                if haveRoll1 and haveRoll2 then
                     setOnce(false);
+                end
             end
         end
-    end
     end
 end
 
@@ -200,12 +202,12 @@ local function actionTimeout()
     timeout[1] = nil;
 end
 
--- Action execution function  
+-- Action execution function
 local function doNext()
     if rollQ:isEmpty() then
-                return;
+        return;
     end
-    
+
     local recasts = getAbilityRecasts();
     local action = rollQ:peek();
 
@@ -221,26 +223,25 @@ local function doNext()
         -- Special check for Random Deal - only use if there's something useful to reset
         if abilityName == 'Random Deal' then
             local shouldUseRandomDeal = false;
-            
+
             if settings.oldrandomdeal then
                 -- Old mode: Reset Snake Eye/Fold if they're on cooldown
                 local snakeOnCD = stateManager.hasSnakeEye and recasts[197] > 0;
                 local foldOnCD = stateManager.hasFold and recasts[198] > 0;
                 shouldUseRandomDeal = snakeOnCD or foldOnCD;
-
             else
                 -- New mode: Reset Crooked Cards if it's on cooldown (we just used it)
                 shouldUseRandomDeal = recasts[96] > 0;
             end
-            
+
             if not shouldUseRandomDeal then
                 -- Skip Random Deal if there's nothing useful to reset
                 rollQ:pop();
                 doNext(); -- Process next action
-        return;
-    end
+                return;
+            end
         end
-        
+
         local command = ('/ja "%s" <me>'):format(abilityName);
         message('command: ' .. command);
         AshitaCore:GetChatManager():QueueCommand(-1, command);
@@ -262,17 +263,17 @@ local function mainLoop()
     if (not enabled.value) then
         return;
     end
-    
+
     -- Update job info to ensure we have current job status
     stateManager:updateJobInfo();
-    
+
     -- Wake up if we're enabled but asleep
     if asleep[1] then
         asleep[1] = false;
     end
 
     local now = os.time();
-    
+
     if (now - globalCooldown[1] < 1.5) then
         return;
     end
@@ -320,6 +321,8 @@ local commandHandler = CommandHandler.new({
     imguiInterface = imguiInterface,
 });
 
+local gear_size = ffi.new('D3DXVECTOR2', { 16.0, 16.0, });
+local gear_rect = ffi.new('RECT', { 0, 0, 16, 16 });
 -- GUI setup
 ashita.events.register('load', 'jroller_gui_load', function()
     local UI = GUI.Container:new({
@@ -338,8 +341,8 @@ ashita.events.register('load', 'jroller_gui_load', function()
             local pos = view:getPos();
             settings.x = pos.x;
             settings.y = pos.y;
-                libSettings.save();
-            end
+            libSettings.save();
+        end
     });
 
     GUI.ctx.addView(UI);
@@ -352,15 +355,38 @@ ashita.events.register('load', 'jroller_gui_load', function()
             activeTextureFile = 'On.png',
             inactiveTextureFile = 'Off.png'
         }),
-        GUI.Label:new({
-            getValue = function()
-                local status = asleep[1] and 'Sleeping' or rollQ:peek() and rollQ:peek().en or 'Idle';
-            if enabled.value and status == 'Idle' then
-                status = 'Enabled';
-            end
-                return 'Status: ' .. status;
-            end
-        }),
+        GUI.Container:new({
+            layout = GUI.Container.LAYOUT.GRID,
+            gridRows = 1,
+            gridCols = GUI.Container.LAYOUT.AUTO,
+            fillDirection = GUI.Container.LAYOUT.HORIZONTAL,
+            gridGap = 4,
+            padding = { x = 0, y = 0 },
+            draggable = true,
+        }):addView(
+            GUI.ToggleButton:new({
+                _width = 20,
+                _height = 20,
+                getTextureSize = function() return gear_size; end,
+                getRect = function() return gear_rect; end,
+                activeColor = T { 0, 55, 255 },
+                inactiveColor = T { 0, 55, 255 },
+                activeTextureFile = 'whitegear.png',
+                inactiveTextureFile = 'whitegear.png',
+                getValue = function() return imguiInterface.showImGuiMenu[1]; end,
+                toggle = function() imguiInterface.showImGuiMenu[1] = not imguiInterface.showImGuiMenu[1]; end
+            }),
+            GUI.Label:new({
+                padding = { x = 0, y = 4 },
+                getValue = function()
+                    local status = asleep[1] and 'Sleeping' or rollQ:peek() and rollQ:peek().en or 'Idle';
+                    if enabled.value and status == 'Idle' then
+                        status = 'Enabled';
+                    end
+                    return 'Status: ' .. status;
+                end
+            })
+        ),
 
         GUI.Label:new({ value = 'Roll 1' }),
         GUI.Dropdown:new({
@@ -398,7 +424,7 @@ end)
 -- ImGui rendering
 local function renderImGuiMenu()
     stateManager:updateJobInfo();
-    
+
     -- Update ImGui state
     imguiInterface:updateState({
         mainjob = stateManager.mainjob,
@@ -410,7 +436,7 @@ local function renderImGuiMenu()
         rollWindow = rollWindow[1],
         pending = pending[1],
     });
-    
+
     imguiInterface:render();
 end
 
@@ -451,7 +477,7 @@ ashita.events.register('packet_in', 'roller_action_cb', function(e)
 
     -- Update roll number
     rollNum[1] = ashita.bits.unpack_be(e.data_raw, 0, 213, 17);
-    
+
     -- Filter out Crooked Cards confirmation (601) - not a real roll result
     if rollNum[1] ~= 601 then
         message('Rolled: ' .. tostring(rollNum[1]));
@@ -488,11 +514,11 @@ ashita.events.register('command', 'command_cb', function(e)
         hasFold = stateManager.hasFold,
         once = once[1],
     });
-    
+
     -- Process command
     local handled = commandHandler:processCommand(e);
     if handled then
-    e.blocked = true;
+        e.blocked = true;
         sleepManager.wakeUp(); -- Wake up after any command
     end
 end)

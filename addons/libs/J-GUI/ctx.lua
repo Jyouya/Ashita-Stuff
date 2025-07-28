@@ -8,7 +8,16 @@ local ffi       = require('ffi');
 local C         = ffi.C;
 local d3d8dev   = d3d.get_device();
 
-local ctx       = {
+ffi.cdef [[
+    short GetAsyncKeyState(int vKey);
+]]
+
+local user32 = ffi.load("user32");
+
+local VK_SHIFT = 0x10;
+
+
+local ctx = {
     children = T {},
     vec_position = ffi.new('D3DXVECTOR2', { 0, 0, }),
     vec_scale = ffi.new('D3DXVECTOR2', { 1.0, 1.0, }),
@@ -39,11 +48,25 @@ function ctx.reset()
     };
 end
 
+function ctx.isKeyPressed(vKey)
+    -- Check the high bit of the return value
+    return bit.band(user32.GetAsyncKeyState(vKey), 0x8000) ~= 0;
+end
+
 function ctx.addView(view)
     view.parent = ctx;
     view:setCtx(ctx);
 
     ctx.children:insert(view);
+end
+
+function ctx.removeView(view)
+    for i, v in ipairs(ctx.children) do
+        if v == view then
+            table.remove(ctx.children, i)
+            break
+        end
+    end
 end
 
 -- function ctx:getChildX(child)
@@ -66,7 +89,7 @@ end
 local prevClickedChild;
 ashita.events.register('mouse', 'mouse_cb', function(e)
     -- Test if click is inside a child
-    if (ctx._drag.shiftDown) then
+    if (ctx.isKeyPressed(VK_SHIFT)) then
         switch(e.message, {
             [512] = (function()
                 if (ctx._drag.isDragging) then
@@ -153,7 +176,7 @@ ashita.events.register('key', 'key_shift_callback_ctx', function(e)
     -- Key: VK_SHIFT
     if (e.wparam == 0x10) then
         ctx._drag.shiftDown = not (bit.band(e.lparam, bit.lshift(0x8000, 0x10)) == bit.lshift(0x8000, 0x10));
-        
+
         if (not ctx._drag.shiftDown) then
             ctx._drag.isDragging = false;
         end
@@ -167,7 +190,7 @@ ashita.events.register('d3d_present', 'present_cb', function()
     if (ctx.sprite == nil) then return; end
     -- Insertion sort.  Should be fast.
     ctx.children = functions.zSort(ctx.children);
-    
+
     -- print('before');
     ctx.sprite:Begin();
 

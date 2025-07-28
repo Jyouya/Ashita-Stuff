@@ -25,6 +25,8 @@ function FilteredContainer:addView(...)
         view:setCtx(self.ctx);
         self._children:append(view);
     end
+
+    return self;
 end
 
 function FilteredContainer:setCtx(ctx)

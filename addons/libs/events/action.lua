@@ -110,7 +110,7 @@ end
 
 local onActionPacket = event:new();
 
-ashita.events.register('packet_in', 'action_tracker_cb', function(e)
+ashita.events.register('packet_in', 'on_action_tracker_cb', function(e)
     if (e.id == 0x0028) then
         local actionPacket;
 
@@ -118,6 +118,7 @@ ashita.events.register('packet_in', 'action_tracker_cb', function(e)
             actionPacket = actionPacket or ParseActionPacket(e);
             return actionPacket;
         end
+
 
         onActionPacket:trigger(e.data_raw, unpackAction);
     end

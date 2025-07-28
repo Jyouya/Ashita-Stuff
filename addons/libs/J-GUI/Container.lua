@@ -224,9 +224,13 @@ function Container:isDraggable(e)
         end
     end
 
-    if (clickedChild) then
-        return clickedChild:isDraggable(e);
-    end
+    return clickedChild and clickedChild:isDraggable(e) or View.isDraggable(self, e);
+
+    -- if (clickedChild) then
+    --     return clickedChild:isDraggable(e);
+    -- else
+    --     return self.draggable or false;
+    -- end
 end
 
 function Container:getZ()
