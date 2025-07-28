@@ -23,6 +23,16 @@ function Q:isEmpty()
     return self.front == self.back;
 end
 
+function Q:clear()
+    -- Clear all elements
+    for i = self.front, self.back - 1 do
+        Q[i] = nil;
+    end
+    -- Reset pointers
+    self.front = 1;
+    self.back = 1;
+end
+
 return function(t)
     t.front = 1;
     t.back = #t + 1;

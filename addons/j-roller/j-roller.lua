@@ -39,18 +39,22 @@ local defaultSettings = T {
     },
     -- Enhanced AshitaRoller features
     engaged = false,        -- Only roll while engaged
-    crooked2 = true,       -- Use Crooked Cards on roll 2
+    crooked2 = false,      -- Save Crooked Cards for roll 2 only (vs normal: use on roll 1 + reset)
     randomdeal = true,     -- Use Random Deal
     oldrandomdeal = false, -- Use Random Deal for Snake/Fold vs Crooked
     partyalert = false,    -- Alert party before rolling
-    gamble = false,        -- Gamble for double 11s when bust immune
-    bustrecovery = true,   -- Prioritize Random Deal for bust recovery over Phantom Roll cooldown
+    gamble = false,        -- Aggressive mode: target 11 on roll 1, exploit bust immunity for guaranteed double 11s
+    bustimmunity = true,   -- Exploit bust immunity (11 on roll 1) for aggressive roll 2
+    safemode = false,      -- Ultra-conservative mode: only double up on rolls 1-5, like subjob COR
+    townmode = false,      -- Only roll when not in town/safe zones
     hasSnakeEye = true,    -- true = enabled, false = disabled
     hasFold = true,        -- true = enabled, false = disabled
     -- ImGui window settings
     showImGuiMenu = false, -- Show/hide ImGui menu
     imguiMenuX = 100,      -- ImGui window X position
     imguiMenuY = 100,      -- ImGui window Y position
+    -- Random Deal Priority (1 = highest priority)
+    randomDealPriority = { 'Crooked Cards', 'Snake Eye', 'Fold' },
 };
 
 local settings = libSettings.load(defaultSettings);
@@ -176,21 +180,21 @@ local function rollStrategy()
             local haveRoll2 = StateManager.hasBuff(rolls[2].value);
             
             if stateManager.subjob == 17 then
-                if haveRoll1 then
+            if haveRoll1 then
                     setOnce(false);
-                end
-            else
-                if haveRoll1 and haveRoll2 then
+            end
+        else
+            if haveRoll1 and haveRoll2 then
                     setOnce(false);
-                end
             end
         end
+    end
     end
 end
 
 -- Action timeout function
 local function actionTimeout()
-    rollQ = Q {};
+    rollQ:clear();
     rollStrategy();
     pending[1] = false;
     timeout[1] = nil;
@@ -198,10 +202,15 @@ end
 
 -- Action execution function  
 local function doNext()
+    if rollQ:isEmpty() then
+                return;
+    end
+    
     local recasts = getAbilityRecasts();
+    local action = rollQ:peek();
 
-    local cd = recasts[rollQ:peek().id];
-    local abilityName = rollQ:peek().en;
+    local cd = recasts[action.id];
+    local abilityName = action.en;
 
     if (abilityName == nil) then
         message('Ability Name nil');
@@ -209,14 +218,41 @@ local function doNext()
     end
 
     if (cd == 0) then
+        -- Special check for Random Deal - only use if there's something useful to reset
+        if abilityName == 'Random Deal' then
+            local shouldUseRandomDeal = false;
+            
+            if settings.oldrandomdeal then
+                -- Old mode: Reset Snake Eye/Fold if they're on cooldown
+                local snakeOnCD = stateManager.hasSnakeEye and recasts[197] > 0;
+                local foldOnCD = stateManager.hasFold and recasts[198] > 0;
+                shouldUseRandomDeal = snakeOnCD or foldOnCD;
+
+            else
+                -- New mode: Reset Crooked Cards if it's on cooldown (we just used it)
+                shouldUseRandomDeal = recasts[96] > 0;
+            end
+            
+            if not shouldUseRandomDeal then
+                -- Skip Random Deal if there's nothing useful to reset
+                rollQ:pop();
+                doNext(); -- Process next action
+        return;
+    end
+        end
+        
         local command = ('/ja "%s" <me>'):format(abilityName);
         message('command: ' .. command);
         AshitaCore:GetChatManager():QueueCommand(-1, command);
         pending[1] = true;
         timeout[1] = os.time();
-    elseif ((rollWindow[1] and os.time() + cd > rollWindow[1])
-            or (not rollWindow[1] and cd > 10)) then
-        rollQ = Q {};
+    elseif (rollWindow[1] and os.time() + cd > rollWindow[1]) then
+        -- If we're in a roll window and the ability won't be ready in time, clear and restart
+        rollQ:clear();
+        rollStrategy()
+    elseif (not rollWindow[1] and action.id == 193 and cd > 10) then
+        -- If we're not in a roll window and Phantom Roll has significant cooldown, clear and restart
+        rollQ:clear();
         rollStrategy()
     end
 end
@@ -227,13 +263,16 @@ local function mainLoop()
         return;
     end
     
+    -- Update job info to ensure we have current job status
+    stateManager:updateJobInfo();
+    
     -- Wake up if we're enabled but asleep
     if asleep[1] then
         asleep[1] = false;
     end
 
     local now = os.time();
-
+    
     if (now - globalCooldown[1] < 1.5) then
         return;
     end
@@ -243,9 +282,9 @@ local function mainLoop()
     end
 
     if (rollWindow[1] and rollWindow[1] < os.time()) then
-        rollQ = Q {};
         pending[1] = false;
         finishRoll();
+        -- Don't clear queue here - let Random Deal and other queued actions execute
     end
 
     if (rollQ:isEmpty()) then
@@ -299,8 +338,8 @@ ashita.events.register('load', 'jroller_gui_load', function()
             local pos = view:getPos();
             settings.x = pos.x;
             settings.y = pos.y;
-            libSettings.save();
-        end
+                libSettings.save();
+            end
     });
 
     GUI.ctx.addView(UI);
@@ -316,9 +355,9 @@ ashita.events.register('load', 'jroller_gui_load', function()
         GUI.Label:new({
             getValue = function()
                 local status = asleep[1] and 'Sleeping' or rollQ:peek() and rollQ:peek().en or 'Idle';
-                if enabled.value and status == 'Idle' then
-                    status = 'Enabled';
-                end
+            if enabled.value and status == 'Idle' then
+                status = 'Enabled';
+            end
                 return 'Status: ' .. status;
             end
         }),
@@ -404,7 +443,7 @@ ashita.events.register('packet_in', 'roller_action_cb', function(e)
         actionComplete();
     elseif (not rollQ:isEmpty()) then
         -- If the action does not match, clear queue and restrategize
-        rollQ = Q {};
+        rollQ:clear();
         rollStrategy();
     end
 
@@ -412,22 +451,31 @@ ashita.events.register('packet_in', 'roller_action_cb', function(e)
 
     -- Update roll number
     rollNum[1] = ashita.bits.unpack_be(e.data_raw, 0, 213, 17);
-    message('Rolled: ' .. tostring(rollNum[1]));
+    
+    -- Filter out Crooked Cards confirmation (601) - not a real roll result
+    if rollNum[1] ~= 601 then
+        message('Rolled: ' .. tostring(rollNum[1]));
+    end
 
     -- Start over if we busted
     if (rollNum[1] == 12) then -- Bust
         finishRoll();
-        rollQ = Q {};
+        rollQ:clear();
         rollStrategy();
     end
 end);
 
 -- Command handling
 enabled.on_change:register(function()
-    rollQ = Q {};
+    rollQ:clear();
     -- Clear any pending actions when toggling
     pending[1] = false;
     timeout[1] = nil;
+    -- Debug message
+    message('Rolling ' .. (enabled.value and 'ENABLED' or 'DISABLED'));
+    if enabled.value then
+        sleepManager.wakeUp();
+    end
 end);
 
 ashita.events.register('command', 'command_cb', function(e)
@@ -444,7 +492,7 @@ ashita.events.register('command', 'command_cb', function(e)
     -- Process command
     local handled = commandHandler:processCommand(e);
     if handled then
-        e.blocked = true;
+    e.blocked = true;
         sleepManager.wakeUp(); -- Wake up after any command
     end
 end)

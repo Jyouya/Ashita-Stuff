@@ -29,9 +29,16 @@ function StateManager:updateJobInfo()
     self.mainjob = playerMgr:GetMainJob();
     self.subjob = playerMgr:GetSubJob();
     
-    -- Use manual merit ability settings
-    self.hasSnakeEye = self.settings.hasSnakeEye;
-    self.hasFold = self.settings.hasFold;
+    -- Merit abilities are only available to main job COR
+    if self.mainjob == 17 then
+        -- Main job COR: use manual merit ability settings
+        self.hasSnakeEye = self.settings.hasSnakeEye;
+        self.hasFold = self.settings.hasFold;
+    else
+        -- Subjob COR: no merit abilities available
+        self.hasSnakeEye = false;
+        self.hasFold = false;
+    end
 end
 
 -- Get current state information

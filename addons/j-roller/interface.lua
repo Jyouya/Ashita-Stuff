@@ -129,14 +129,17 @@ function ImGuiInterface:renderBasicControls()
         
         imgui.Separator();
         
-        -- Once Mode
-        if imgui.Button('Roll Once') then
-            self.message('Will roll until both rolls are up, then stop.');
-            self.setOnce(true);
-            self.enabled:set(true);
-        end
-        imgui.SameLine();
-        imgui.TextColored({ 0.8, 0.8, 0.8, 1.0 }, '(Roll both rolls once then stop)');
+                 -- Once Mode
+         if imgui.Button('Roll Once') then
+             self.message('Will roll until both rolls are up, then stop.');
+             self.setOnce(true);
+             self.enabled:set(true);
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('Roll both rolls once then automatically stop.\nUseful for quick buffs without continuous rolling.');
+         end
     end
 end
 
@@ -193,39 +196,161 @@ function ImGuiInterface:renderAdvancedSettings()
         -- Combat Settings
         imgui.TextColored({ 1.0, 0.8, 0.6, 1.0 }, 'Combat Options:');
         
-        local engagedValue = { self.settings.engaged };
-        if imgui.Checkbox('Only Roll While Engaged', engagedValue) then
-            self.settings.engaged = engagedValue[1];
-            self.libSettings.save();
-        end
-        
-        local partyalertValue = { self.settings.partyalert };
-        if imgui.Checkbox('Alert Party Before Rolling', partyalertValue) then
-            self.settings.partyalert = partyalertValue[1];
-            self.libSettings.save();
-        end
+                 local engagedValue = { self.settings.engaged };
+         if imgui.Checkbox('Only Roll While Engaged', engagedValue) then
+             self.settings.engaged = engagedValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('Only roll when you are engaged in combat.\nUseful to avoid rolling during downtime.');
+         end
+         
+         local partyalertValue = { self.settings.partyalert };
+         if imgui.Checkbox('Alert Party Before Rolling', partyalertValue) then
+             self.settings.partyalert = partyalertValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('Sends a party message 8 seconds before rolling\nto give party members time to get in range.');
+         end
+         
+         local townmodeValue = { self.settings.townmode };
+         if imgui.Checkbox('Town Mode (No Rolling in Cities)', townmodeValue) then
+             self.settings.townmode = townmodeValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('Prevents rolling when in towns or safe zones.\nUseful to avoid rolling in populated areas.');
+         end
         
         imgui.Separator();
         
         -- Ability Usage Settings
         imgui.TextColored({ 0.8, 0.6, 1.0, 1.0 }, 'Ability Usage:');
         
-        local crooked2Value = { self.settings.crooked2 };
-        if imgui.Checkbox('Use Crooked Cards on Roll 2', crooked2Value) then
-            self.settings.crooked2 = crooked2Value[1];
-            self.libSettings.save();
+                 local crooked2Value = { self.settings.crooked2 };
+                   if imgui.Checkbox('Save Crooked Cards for Roll 2 Only', crooked2Value) then
+             self.settings.crooked2 = crooked2Value[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+                           imgui.SetTooltip('ON: Save Crooked Cards for Roll 2 only\nOFF: Normal (use on Roll 1, Random Deal resets for Roll 2)');
+         end
+         
+         local randomdealValue = { self.settings.randomdeal };
+         if imgui.Checkbox('Use Random Deal', randomdealValue) then
+             self.settings.randomdeal = randomdealValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('Enable smart Random Deal usage.\nAutomatically uses Random Deal when beneficial:\n- After bust+fold (resets all abilities)\n- When multiple abilities on cooldown\n- When key abilities need resetting');
+         end
+         
+         local oldrandomdealValue = { self.settings.oldrandomdeal };
+         if imgui.Checkbox('Random Deal: Disable Crooked Cards Reset', oldrandomdealValue) then
+             self.settings.oldrandomdeal = oldrandomdealValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('ON: Never use Random Deal to reset Crooked Cards\nOFF: Normal (will reset Crooked Cards when beneficial)\n\nUse this to preserve Crooked Cards for specific strategies.');
+         end
+        
+        imgui.Separator();
+        
+        -- Random Deal Priority Configuration
+        imgui.TextColored({ 1.0, 0.8, 0.4, 1.0 }, 'Random Deal Priority:');
+        imgui.SameLine();
+        imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+        if imgui.IsItemHovered() then
+            imgui.SetTooltip('Random Deal Priority Order:\n\nWhen Random Deal triggers, it checks these abilities\nin order from top to bottom (1 to 2 to 3).\n\nThe FIRST ability found on cooldown will be targeted.\nHigher priority abilities are checked first.\n\nExample: If Crooked Cards is #1 and on cooldown,\nRandom Deal attempts to reset it immediately without\nchecking Snake Eye or Fold.');
         end
         
-        local randomdealValue = { self.settings.randomdeal };
-        if imgui.Checkbox('Use Random Deal', randomdealValue) then
-            self.settings.randomdeal = randomdealValue[1];
-            self.libSettings.save();
-        end
-        
-        local oldrandomdealValue = { self.settings.oldrandomdeal };
-        if imgui.Checkbox('Random Deal: Reset Snake Eye/Fold (vs Crooked)', oldrandomdealValue) then
-            self.settings.oldrandomdeal = oldrandomdealValue[1];
-            self.libSettings.save();
+        -- Priority list with visual styling and arrow controls
+        for i = 1, #self.settings.randomDealPriority do
+            local item = self.settings.randomDealPriority[i];
+            
+            -- Create a visual frame around each item
+            imgui.PushStyleColor(ImGuiCol_ChildBg, { 0.15, 0.15, 0.15, 1.0 });
+            if item == 'Crooked Cards' then
+                imgui.PushStyleColor(ImGuiCol_ChildBg, { 0.25, 0.15, 0.35, 1.0 }); -- Dark purple
+            elseif item == 'Snake Eye' then
+                imgui.PushStyleColor(ImGuiCol_ChildBg, { 0.35, 0.25, 0.15, 1.0 }); -- Dark gold
+            elseif item == 'Fold' then
+                imgui.PushStyleColor(ImGuiCol_ChildBg, { 0.15, 0.25, 0.35, 1.0 }); -- Dark blue
+            end
+            
+            if imgui.BeginChild('priority_item_' .. i, { 250, 25 }, false, ImGuiWindowFlags_NoScrollbar) then
+                -- Priority number
+                imgui.Text(tostring(i) .. '.');
+                imgui.SameLine();
+                
+                -- Up arrow button (disabled for first item)
+                if i == 1 then
+                    imgui.PushStyleColor(ImGuiCol_Button, { 0.2, 0.2, 0.2, 0.5 });
+                    imgui.PushStyleColor(ImGuiCol_ButtonHovered, { 0.2, 0.2, 0.2, 0.5 });
+                    imgui.PushStyleColor(ImGuiCol_ButtonActive, { 0.2, 0.2, 0.2, 0.5 });
+                    imgui.Button('^##up' .. i);
+                    imgui.PopStyleColor(3);
+                else
+                    if imgui.Button('^##up' .. i) then
+                        -- Swap with item above
+                        local temp = self.settings.randomDealPriority[i-1];
+                        self.settings.randomDealPriority[i-1] = item;
+                        self.settings.randomDealPriority[i] = temp;
+                        self.libSettings.save();
+                    end
+                end
+                imgui.SameLine();
+                
+                -- Down arrow button (disabled for last item)
+                if i == #self.settings.randomDealPriority then
+                    imgui.PushStyleColor(ImGuiCol_Button, { 0.2, 0.2, 0.2, 0.5 });
+                    imgui.PushStyleColor(ImGuiCol_ButtonHovered, { 0.2, 0.2, 0.2, 0.5 });
+                    imgui.PushStyleColor(ImGuiCol_ButtonActive, { 0.2, 0.2, 0.2, 0.5 });
+                    imgui.Button('v##down' .. i);
+                    imgui.PopStyleColor(3);
+                else
+                    if imgui.Button('v##down' .. i) then
+                        -- Swap with item below
+                        local temp = self.settings.randomDealPriority[i+1];
+                        self.settings.randomDealPriority[i+1] = item;
+                        self.settings.randomDealPriority[i] = temp;
+                        self.libSettings.save();
+                    end
+                end
+                imgui.SameLine();
+                
+                -- Item name with appropriate text color
+                local textColor = { 1.0, 1.0, 1.0, 1.0 }; -- Bright white
+                if item == 'Crooked Cards' then
+                    textColor = { 1.0, 0.8, 1.0, 1.0 }; -- Light purple
+                elseif item == 'Snake Eye' then
+                    textColor = { 1.0, 0.9, 0.5, 1.0 }; -- Light yellow
+                elseif item == 'Fold' then
+                    textColor = { 0.5, 0.8, 1.0, 1.0 }; -- Light blue
+                end
+                imgui.TextColored(textColor, item);
+                
+                imgui.EndChild();
+            end
+            imgui.PopStyleColor(1);
+            
+            -- Add some spacing between items
+            if i < #self.settings.randomDealPriority then
+                imgui.Spacing();
+            end
         end
         
         imgui.Separator();
@@ -234,16 +359,39 @@ function ImGuiInterface:renderAdvancedSettings()
         imgui.TextColored({ 1.0, 0.6, 0.6, 1.0 }, 'Advanced Rolling:');
         
         local gambleValue = { self.settings.gamble };
-        if imgui.Checkbox('Gamble Mode (Exploit Bust Immunity)', gambleValue) then
+        if imgui.Checkbox('Gamble Mode (Aggressive Double 11s)', gambleValue) then
             self.settings.gamble = gambleValue[1];
             self.libSettings.save();
         end
-        
-        local bustrecoveryValue = { self.settings.bustrecovery };
-        if imgui.Checkbox('Prioritize Random Deal for Bust Recovery', bustrecoveryValue) then
-            self.settings.bustrecovery = bustrecoveryValue[1];
-            self.libSettings.save();
+        imgui.SameLine();
+        imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+        if imgui.IsItemHovered() then
+            imgui.SetTooltip('Aggressively targets 11 on Roll 1, then exploits bust immunity\nto guarantee 11 on Roll 2. Will fold/reset non-11 rolls.');
         end
+        
+                 local bustimmunityValue = { self.settings.bustimmunity };
+         if imgui.Checkbox('Exploit Bust Immunity', bustimmunityValue) then
+             self.settings.bustimmunity = bustimmunityValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('When Roll 1 is 11, be more aggressive on Roll 2\nsince you cannot bust. Disable for scenarios where\nyou need Roll 2 immediately regardless of quality.');
+         end
+         
+         local safemodeValue = { self.settings.safemode };
+         if imgui.Checkbox('Safe Mode (Ultra-Conservative)', safemodeValue) then
+             self.settings.safemode = safemodeValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('Ultra-conservative mode: only double up on rolls 1-5.\nSimilar to subjob COR behavior. Overrides other settings.');
+         end
+        
+
     end
 end
 
@@ -253,17 +401,27 @@ function ImGuiInterface:renderMeritAbilities()
         
         imgui.TextColored({ 0.6, 1.0, 1.0, 1.0 }, 'Manual Merit Ability Control:');
         
-        local hasSnakeEyeValue = { self.settings.hasSnakeEye };
-        if imgui.Checkbox('Snake Eye Enabled', hasSnakeEyeValue) then
-            self.settings.hasSnakeEye = hasSnakeEyeValue[1];
-            self.libSettings.save();
-        end
-        
-        local hasFoldValue = { self.settings.hasFold };
-        if imgui.Checkbox('Fold Enabled', hasFoldValue) then
-            self.settings.hasFold = hasFoldValue[1];
-            self.libSettings.save();
-        end
+                 local hasSnakeEyeValue = { self.settings.hasSnakeEye };
+         if imgui.Checkbox('Snake Eye Enabled', hasSnakeEyeValue) then
+             self.settings.hasSnakeEye = hasSnakeEyeValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('Snake Eye: Sets next roll to 11.\nUsed for getting lucky numbers or avoiding unlucky.');
+         end
+         
+         local hasFoldValue = { self.settings.hasFold };
+         if imgui.Checkbox('Fold Enabled', hasFoldValue) then
+             self.settings.hasFold = hasFoldValue[1];
+             self.libSettings.save();
+         end
+         imgui.SameLine();
+         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
+         if imgui.IsItemHovered() then
+             imgui.SetTooltip('Fold: Removes current roll without affecting others.\nUsed for bust recovery or removing bad rolls.');
+         end
         
         imgui.Separator();
         imgui.TextColored({ 0.8, 0.8, 0.8, 1.0 }, 'Note: These override auto-detection.');
@@ -331,11 +489,15 @@ function ImGuiInterface:renderHelp()
             self.message('/roller roll1/roll2 <n> - Set roll');
             self.message('/roller <preset> - Apply preset (tp, acc, ws, nuke, pet, etc.)');
             self.message('/roller engaged on/off - Only roll while engaged');
-            self.message('/roller crooked2 on/off - Use Crooked Cards on roll 2');
+                         self.message('/roller crooked2 on/off - Save Crooked Cards for roll 2 only');
             self.message('/roller randomdeal on/off - Use Random Deal');
             self.message('/roller partyalert on/off - Alert party before rolling');
-            self.message('/roller gamble on/off - Gamble for double 11s');
-            self.message('/roller bustrecovery on/off - Prioritize Random Deal for bust recovery');
+                         self.message('/roller gamble on/off - Aggressive mode for double 11s');
+             self.message('/roller bustimmunity on/off - Exploit bust immunity');
+             self.message('/roller safemode on/off - Ultra-conservative mode');
+             self.message('/roller townmode on/off - Prevent rolling in towns');
+            self.message('/roller resetpriority - Reset Random Deal priority to default');
+    
             self.message('/roller once - Roll both rolls once then stop');
             self.message('/roller snakeeye/fold on/off - Merit ability settings');
             self.message('/roller menu - Toggle ImGui settings menu');
