@@ -1,21 +1,21 @@
 -- Rolling strategy module for J-Roller Enhanced
-local getAbilityRecasts = require('getAbilityRecasts');
+local getAbilityRecasts = require("getAbilityRecasts")
 
-local RollingStrategy = {};
+local RollingStrategy = {}
 
 -- Initialize the rolling strategy
 function RollingStrategy.new(dependencies)
-    local self = {
-        -- Dependencies from main module
-        settings = dependencies.settings,
-        rollsByName = dependencies.rollsByName,
-        rollsByParam = dependencies.rollsByParam,
-        rolls = dependencies.rolls,
-        message = dependencies.message,
-        hasBuff = dependencies.hasBuff,
-        isIncapacitated = dependencies.isIncapacitated,
-        sleep = dependencies.sleep,
-        rollQ = dependencies.rollQ,
+	local self = {
+		-- Dependencies from main module
+		settings = dependencies.settings,
+		rollsByName = dependencies.rollsByName,
+		rollsByParam = dependencies.rollsByParam,
+		rolls = dependencies.rolls,
+		message = dependencies.message,
+		hasBuff = dependencies.hasBuff,
+		isIncapacitated = dependencies.isIncapacitated,
+		sleep = dependencies.sleep,
+		rollQ = dependencies.rollQ,
 
         -- State variables (updated from main)
         mainjob = nil,
@@ -36,8 +36,8 @@ function RollingStrategy.new(dependencies)
         partyAlertTime = 0,
     };
 
-    setmetatable(self, { __index = RollingStrategy });
-    return self;
+	setmetatable(self, { __index = RollingStrategy })
+	return self
 end
 
 -- Update state information from main module
@@ -80,28 +80,28 @@ end
 
 -- Check if we should do a new roll
 function RollingStrategy:shouldDoNewRoll(enabled)
-    -- Do not roll if disabled, or incapacitated
-    if (not enabled or self.isIncapacitated()) then
-        return false, "Disabled or incapacitated";
-    end
+	-- Do not roll if disabled, or incapacitated
+	if not enabled or self.isIncapacitated() then
+		return false, "Disabled or incapacitated"
+	end
 
-    -- Do not roll while hidden
-    if (self.hasBuff('sneak') or self.hasBuff('invisible')) then
-        return false, "Hidden (sneak/invis)";
-    end
+	-- Do not roll while hidden
+	if self.hasBuff("sneak") or self.hasBuff("invisible") then
+		return false, "Hidden (sneak/invis)"
+	end
 
-    -- Don't roll if not COR
-    if not (self.mainjob == 17 or self.subjob == 17) then
-        return false, "Not COR";
-    end
+	-- Don't roll if not COR
+	if not (self.mainjob == 17 or self.subjob == 17) then
+		return false, "Not COR"
+	end
 
-    -- Check engaged only setting
-    if self.settings.engaged then
-        local player = GetPlayerEntity();
-        if not player or player.Status ~= 1 then -- 1 = engaged
-            return false, "Not engaged";
-        end
-    end
+	-- Check engaged only setting
+	if self.settings.engaged then
+		local player = GetPlayerEntity()
+		if not player or player.Status ~= 1 then -- 1 = engaged
+			return false, "Not engaged"
+		end
+	end
 
     -- Check town mode setting
     if self.settings.townmode then
@@ -109,38 +109,38 @@ function RollingStrategy:shouldDoNewRoll(enabled)
         local zoneName = AshitaCore:GetResourceManager():GetString('zones.names', zone);
         local cities = require('cities');
 
-        if cities[zoneName] then
-            return false, "In town (Town mode enabled)";
-        end
-    end
+		if cities[zoneName] then
+			return false, "In town (Town mode enabled)"
+		end
+	end
 
-    -- Handle 'once' mode - check if we have both rolls (or just one for sub-COR)
-    if self.once then
-        local haveRoll1 = self.hasBuff(self.rolls[1].value);
-        local haveRoll2 = self.hasBuff(self.rolls[2].value);
+	-- Handle 'once' mode - check if we have both rolls (or just one for sub-COR)
+	if self.once then
+		local haveRoll1 = self.hasBuff(self.rolls[1].value)
+		local haveRoll2 = self.hasBuff(self.rolls[2].value)
 
-        if self.subjob == 17 then
-            -- Sub-COR only gets one roll
-            if haveRoll1 then
-                return false, "Once mode complete (Sub-COR)";
-            end
-        else
-            -- Main COR gets both rolls
-            if haveRoll1 and haveRoll2 then
-                return false, "Once mode complete";
-            end
-        end
-    end
+		if self.subjob == 17 then
+			-- Sub-COR only gets one roll
+			if haveRoll1 then
+				return false, "Once mode complete (Sub-COR)"
+			end
+		else
+			-- Main COR gets both rolls
+			if haveRoll1 and haveRoll2 then
+				return false, "Once mode complete"
+			end
+		end
+	end
 
-    return true, "Ready to roll";
+	return true, "Ready to roll"
 end
 
 -- Handle bust recovery with available abilities
 function RollingStrategy:handleBustRecovery()
-    -- Only handle bust recovery if we actually have the Bust buff
-    if not self.hasBuff('Bust') then
-        return false;
-    end
+	-- Only handle bust recovery if we actually have the Bust buff
+	if not self.hasBuff("Bust") then
+		return false
+	end
 
     -- Priority: Fold first (removes bust), then Random Deal (instant recovery)
     if (self.hasFold and self.recasts[198] and self.recasts[198] == 0) then
@@ -259,36 +259,36 @@ end
 
 -- Main new roll strategy
 function RollingStrategy:doNewRoll(enabled)
-    self.recasts = getAbilityRecasts();
+	self.recasts = getAbilityRecasts()
 
-    local canRoll, reason = self:shouldDoNewRoll(enabled);
-    if not canRoll then
-        if reason == "Once mode complete" or reason == "Once mode complete (Sub-COR)" then
-            self.message('Once mode: Roll complete');
-            -- Note: once flag will be reset by main module
-        end
-        return false;
-    end
+	local canRoll, reason = self:shouldDoNewRoll(enabled)
+	if not canRoll then
+		if reason == "Once mode complete" or reason == "Once mode complete (Sub-COR)" then
+			self.message("Once mode: Roll complete")
+			-- Note: once flag will be reset by main module
+		end
+		return false
+	end
 
-    -- Handle bust recovery FIRST (highest priority)
-    if self:handleBustRecovery() then
-        return true;
-    end
+	-- Handle bust recovery FIRST (highest priority)
+	if self:handleBustRecovery() then
+		return true
+	end
 
-    -- Check phantom roll recast
-    if self.recasts[193] and self.recasts[193] > 10 then
-        self.sleep();
-        return true;
-    end
+	-- Check phantom roll recast
+	if self.recasts[193] and self.recasts[193] > 10 then
+		self.sleep()
+		return true
+	end
 
-    -- Check if we already have both rolls
-    local haveRoll1 = self.hasBuff(self.rolls[1].value);
-    local haveRoll2 = self.hasBuff(self.rolls[2].value);
+	-- Check if we already have both rolls
+	local haveRoll1 = self.hasBuff(self.rolls[1].value)
+	local haveRoll2 = self.hasBuff(self.rolls[2].value)
 
-    if haveRoll1 and (haveRoll2 or self.subjob == 17) then
-        -- Nothing else to do - all rolls are up
-        return false;
-    end
+	if haveRoll1 and (haveRoll2 or self.subjob == 17) then
+		-- Nothing else to do - all rolls are up
+		return false
+	end
 
     -- Reset lastRoll if we don't have any buffs
     if not haveRoll1 and not haveRoll2 then
@@ -336,40 +336,40 @@ function RollingStrategy:doNewRoll(enabled)
         end
     end
 
-    -- Determine which roll to do next
-    if self:determineNextRoll() then
-        return true;
-    else
-        self.sleep();
-        return true;
-    end
+	-- Determine which roll to do next
+	if self:determineNextRoll() then
+		return true
+	else
+		self.sleep()
+		return true
+	end
 end
 
 -- Advanced double-up logic from AshitaRoller
 function RollingStrategy:shouldDoubleUp()
-    -- Get fresh recast data for accurate cooldown checks
-    self.recasts = getAbilityRecasts();
+	-- Get fresh recast data for accurate cooldown checks
+	self.recasts = getAbilityRecasts()
 
-    local current = self.rollsByName[self.currentRoll];
-    local rollID = current.param;
-    local luckyNum = current.lucky;
-    local unluckyNum = current.unlucky;
+	local current = self.rollsByName[self.currentRoll]
+	local rollID = current.param
+	local luckyNum = current.lucky
+	local unluckyNum = current.unlucky
 
-    -- Sub-COR simplified strategy: double up if roll < 5
-    if self.subjob == 17 then
-        if self.rollNum < 5 then
-            return true, "Sub-COR: Roll < 5";
-        end
-        return false, "Sub-COR: Roll >= 5, stopping";
-    end
+	-- Sub-COR simplified strategy: double up if roll < 5
+	if self.subjob == 17 then
+		if self.rollNum < 5 then
+			return true, "Sub-COR: Roll < 5"
+		end
+		return false, "Sub-COR: Roll >= 5, stopping"
+	end
 
-    -- Safe mode: use subjob-like strategy even on main COR
-    if self.settings.safemode then
-        if self.rollNum < 5 then
-            return true, "Safe Mode: Roll < 5";
-        end
-        return false, "Safe Mode: Roll >= 5, stopping";
-    end
+	-- Safe mode: use subjob-like strategy even on main COR
+	if self.settings.safemode then
+		if self.rollNum < 5 then
+			return true, "Safe Mode: Roll < 5"
+		end
+		return false, "Safe Mode: Roll >= 5, stopping"
+	end
 
     -- Main COR advanced strategy (from AshitaRoller)
     if self.mainjob == 17 then
@@ -396,20 +396,26 @@ function RollingStrategy:shouldDoubleUp()
         else
             -- Normal strategy - conservative approach
 
-            -- PRIORITY 1: Use Snake Eye for 10 → 11 (highest priority)
-            if self.hasSnakeEye and self.recasts[197] and self.recasts[197] == 0 and self.rollNum == 10 then
-                return false, "Using Snake Eye for guaranteed 11 (highest priority)";
-            end
+			-- PRIORITY 1: Use Snake Eye for 10 → 11 (highest priority)
+			if self.hasSnakeEye and self.recasts[197] and self.recasts[197] == 0 and self.rollNum == 10 then
+				return false, "Using Snake Eye for guaranteed 11 (highest priority)"
+			end
 
-            -- PRIORITY 2: Use Snake Eye for lucky-1 (second priority)
-            if self.hasSnakeEye and self.recasts[197] and self.recasts[197] == 0 and self.rollNum == (luckyNum - 1) and self.rollCrooked then
-                return false, "Using Snake Eye for lucky number (second priority)";
-            end
+			-- PRIORITY 2: Use Snake Eye for lucky-1 (second priority)
+			if
+				self.hasSnakeEye
+				and self.recasts[197]
+				and self.recasts[197] == 0
+				and self.rollNum == (luckyNum - 1)
+				and self.rollCrooked
+			then
+				return false, "Using Snake Eye for lucky number (second priority)"
+			end
 
-            -- PRIORITY 3: Use Snake Eye for unlucky numbers (third priority)
-            if self.hasSnakeEye and self.recasts[197] and self.recasts[197] == 0 and self.rollNum == unluckyNum then
-                return false, "Using Snake Eye to avoid unlucky (third priority)";
-            end
+			-- PRIORITY 3: Use Snake Eye for unlucky numbers (third priority)
+			if self.hasSnakeEye and self.recasts[197] and self.recasts[197] == 0 and self.rollNum == unluckyNum then
+				return false, "Using Snake Eye to avoid unlucky (third priority)"
+			end
 
             -- Handle 8+ rolls differently
             if self.rollNum >= 8 then
@@ -461,56 +467,56 @@ function RollingStrategy:shouldDoubleUp()
                 end
             end
 
-            -- Always continue on rolls < 6
-            if self.rollNum < 6 then
-                return true, "Roll < 6, continuing";
-            end
+			-- Always continue on rolls < 6
+			if self.rollNum < 6 then
+				return true, "Roll < 6, continuing"
+			end
 
-            -- Fallback
-            return false, "Stopping: conditions not met";
-        end
-    end
+			-- Fallback
+			return false, "Stopping: conditions not met"
+		end
+	end
 
-    return false, "Unknown job configuration";
+	return false, "Unknown job configuration"
 end
 
 -- Create a double-up action
 function RollingStrategy:createDoubleUpAction()
-    local current = self.rollsByName[self.currentRoll];
-    local action = self.rollsByName['Double-Up']:copy();
-    action.param = current.param;
-    return action;
+	local current = self.rollsByName[self.currentRoll]
+	local action = self.rollsByName["Double-Up"]:copy()
+	action.param = current.param
+	return action
 end
 
 -- Execute double-up strategy
 function RollingStrategy:doubleUp()
-    local shouldDouble, reason = self:shouldDoubleUp();
-    if shouldDouble then
-        local action = self:createDoubleUpAction();
-        self.rollQ:push(action);
-        return true;
-    end
-    return false;
+	local shouldDouble, reason = self:shouldDoubleUp()
+	if shouldDouble then
+		local action = self:createDoubleUpAction()
+		self.rollQ:push(action)
+		return true
+	end
+	return false
 end
 
 -- Advanced Snake Eye logic
 function RollingStrategy:executeSnakeEye(waiting)
-    -- Skip Snake Eye logic for sub-COR
-    if self.subjob == 17 or not self.hasSnakeEye then
-        return false;
-    end
+	-- Skip Snake Eye logic for sub-COR
+	if self.subjob == 17 or not self.hasSnakeEye then
+		return false
+	end
 
-    local current = self.rollsByName[self.currentRoll];
-    local snakeEyesActive = self.hasBuff('Snake Eye');
-    local luckyNum = current.lucky;
-    local unluckyNum = current.unlucky;
+	local current = self.rollsByName[self.currentRoll]
+	local snakeEyesActive = self.hasBuff("Snake Eye")
+	local luckyNum = current.lucky
+	local unluckyNum = current.unlucky
 
-    if (snakeEyesActive) then
-        self.message('Snake Eye buff detected, queueing Double-Up immediately');
-        local doubleUpAction = self:createDoubleUpAction();
-        self.rollQ:push(doubleUpAction);
-        return true;
-    end
+	if snakeEyesActive then
+		self.message("Snake Eye buff detected, queueing Double-Up immediately")
+		local doubleUpAction = self:createDoubleUpAction()
+		self.rollQ:push(doubleUpAction)
+		return true
+	end
 
     -- Check if Snake Eye is available
     if self.recasts[197] and self.recasts[197] == 0 then
@@ -602,81 +608,81 @@ end
 
 -- Main rolling strategy when we have an active roll window
 function RollingStrategy:executeRollStrategy(finishRoll)
-    self.recasts = getAbilityRecasts();
+	self.recasts = getAbilityRecasts()
 
-    -- If we do not have an open window, do new roll
-    if (not self.rollWindow) then
-        return self:doNewRoll(true); -- enabled is handled in doNewRoll
-    end
+	-- If we do not have an open window, do new roll
+	if not self.rollWindow then
+		return self:doNewRoll(true) -- enabled is handled in doNewRoll
+	end
 
-    -- Before any roll decisions, check if we should use Random Deal after roll completion
-    -- This should happen once per roll, regardless of the result
-    local function checkAndUseRandomDeal()
-        if self.settings.randomdeal and self.recasts[196] and self.recasts[196] == 0 then
-            local shouldUseRandomDeal = false;
-            local resetReasons = {};
+	-- Before any roll decisions, check if we should use Random Deal after roll completion
+	-- This should happen once per roll, regardless of the result
+	local function checkAndUseRandomDeal()
+		if self.settings.randomdeal and self.recasts[196] and self.recasts[196] == 0 then
+			local shouldUseRandomDeal = false
+			local resetReasons = {}
 
-            -- Check abilities based on user-configured priority order
-            for i, abilityName in ipairs(self.settings.randomDealPriority) do
-                local isOnCooldown = false;
-                local shouldCheck = true;
+			-- Check abilities based on user-configured priority order
+			for i, abilityName in ipairs(self.settings.randomDealPriority) do
+				local isOnCooldown = false
+				local shouldCheck = true
 
-                if abilityName == 'Crooked Cards' then
-                    -- Don't check Crooked Cards if disabled by toggle
-                    shouldCheck = not self.settings.oldrandomdeal;
-                    isOnCooldown = shouldCheck and self.recasts[96] and self.recasts[96] > 0;
-                elseif abilityName == 'Snake Eye' then
-                    isOnCooldown = self.hasSnakeEye and self.recasts[197] and self.recasts[197] > 0;
-                elseif abilityName == 'Fold' then
-                    isOnCooldown = self.hasFold and self.recasts[198] and self.recasts[198] > 0;
-                end
+				if abilityName == "Crooked Cards" then
+					-- Don't check Crooked Cards if disabled by toggle
+					shouldCheck = not self.settings.oldrandomdeal
+					isOnCooldown = shouldCheck and self.recasts[96] and self.recasts[96] > 0
+				elseif abilityName == "Snake Eye" then
+					isOnCooldown = self.hasSnakeEye and self.recasts[197] and self.recasts[197] > 0
+				elseif abilityName == "Fold" then
+					isOnCooldown = self.hasFold and self.recasts[198] and self.recasts[198] > 0
+				end
 
-                if shouldCheck and isOnCooldown then
-                    table.insert(resetReasons, abilityName);
-                    shouldUseRandomDeal = true;
-                end
-            end
+				if shouldCheck and isOnCooldown then
+					table.insert(resetReasons, abilityName)
+					shouldUseRandomDeal = true
+				end
+			end
 
-            if shouldUseRandomDeal then
-                local reason = table.concat(resetReasons, ', ');
-                self.message('Using Random Deal to reset: ' .. reason);
-                self.rollQ:push(self.rollsByName['Random Deal']);
-                return true; -- Don't finish roll yet, let Random Deal execute
-            end
-        end
-        return false;
-    end
+			if shouldUseRandomDeal then
+				local reason = table.concat(resetReasons, ", ")
+				self.message("Using Random Deal to reset: " .. reason)
+				self.rollQ:push(self.rollsByName["Random Deal"])
+				return true -- Don't finish roll yet, let Random Deal execute
+			end
+		end
+		return false
+	end
 
-    -- If we hit 11 or lucky number, check Random Deal then finish
-    if (self.rollNum == 11 or self.rollNum == self.rollsByName[self.currentRoll].lucky) then
-        if checkAndUseRandomDeal() then
-            return true; -- Random Deal queued, don't finish yet
-        end
-        finishRoll();
-        return true;
-    end
+	-- If we hit 11 or lucky number, check Random Deal then finish
+	if self.rollNum == 11 or self.rollNum == self.rollsByName[self.currentRoll].lucky then
+		if checkAndUseRandomDeal() then
+			return true -- Random Deal queued, don't finish yet
+		end
+		finishRoll()
+		return true
+	end
 
-    -- Try Snake Eye first
-    local snakeEyeResult = self:executeSnakeEye(false); -- waiting will be managed by main module
+	-- Try Snake Eye first
+	local snakeEyeResult = self:executeSnakeEye(false) -- waiting will be managed by main module
 
-    if (snakeEyeResult == 'wait') then
-        -- waiting = true; -- will be set by main module
-        return true;
-    end
+	if snakeEyeResult == "wait" then
+		-- waiting = true; -- will be set by main module
+		return true
+	end
 
-    if (not snakeEyeResult) then
-        if (not self:doubleUp()) then
-            -- Roll is ending without double-up, check Random Deal
-            if checkAndUseRandomDeal() then
-                return true; -- Random Deal queued, don't finish yet
-            end
+	if not snakeEyeResult then
+		if not self:doubleUp() then
+			-- Roll is ending without double-up, check Random Deal
+			if checkAndUseRandomDeal() then
+				return true -- Random Deal queued, don't finish yet
+			end
 
-            -- If we decide not to double up, close the roll
-            finishRoll();
-        end
-    end
+			-- If we decide not to double up, close the roll
+			finishRoll()
+		end
+	end
 
-    return true;
+	return true
 end
 
-return RollingStrategy;
+return RollingStrategy

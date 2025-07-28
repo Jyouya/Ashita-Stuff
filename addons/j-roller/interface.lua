@@ -22,9 +22,11 @@ function ImGuiInterface.new(dependencies)
         once = dependencies.once,
         setOnce = dependencies.setOnce,
         
+        
         -- State variables
         showImGuiMenu = { dependencies.settings.showImGuiMenu },
         imguiFirstRun = true,
+        
         
         -- Job info (updated from main)
         mainjob = nil,
@@ -32,12 +34,14 @@ function ImGuiInterface.new(dependencies)
         hasSnakeEye = false,
         hasFold = false,
         
+        
         -- Status info (updated from main)
         asleep = true,
         rollQ = nil,
         rollWindow = nil,
         pending = false,
     };
+    
     
     setmetatable(self, { __index = ImGuiInterface });
     return self;
@@ -72,7 +76,9 @@ function ImGuiInterface:renderBasicControls()
             self.enabled:set(enabledValue[1]);
         end
         
+        
         imgui.Separator();
+        
         
         -- Current Mode Display
         self.updateJobInfo();
@@ -86,7 +92,9 @@ function ImGuiInterface:renderBasicControls()
         end
         imgui.TextColored({ 0.7, 0.9, 1.0, 1.0 }, modeText);
         
+        
         imgui.Separator();
+        
         
         -- Roll Selection
         imgui.Text('Roll 1:');
@@ -105,9 +113,11 @@ function ImGuiInterface:renderBasicControls()
             imgui.EndCombo();
         end
         
+        
         imgui.Text('Roll 2:');
         imgui.SameLine();
         imgui.SetNextItemWidth(200);
+        
         
         if self.subjob == 17 then
             imgui.Text('N/A (Sub COR)');
@@ -125,6 +135,7 @@ function ImGuiInterface:renderBasicControls()
                 imgui.EndCombo();
             end
         end
+        
         
         imgui.Separator();
         
@@ -153,9 +164,12 @@ function ImGuiInterface:renderQuickPresets()
         imgui.SameLine();
         if imgui.Button('WS (CHA+FTR)') then self.applyPreset('ws'); end
         
+        
         if imgui.Button('Melee (SAM+CHA)') then self.applyPreset('melee'); end
         
+        
         imgui.Separator();
+        
         
         -- Magic Presets
         imgui.TextColored({ 0.8, 0.6, 1.0, 1.0 }, 'Magic:');
@@ -165,7 +179,9 @@ function ImGuiInterface:renderQuickPresets()
         imgui.SameLine();
         if imgui.Button('Burst (WIZ+WAR)') then self.applyPreset('burst'); end
         
+        
         imgui.Separator();
+        
         
         -- Pet Presets
         imgui.TextColored({ 0.6, 1.0, 0.8, 1.0 }, 'Pet:');
@@ -173,11 +189,14 @@ function ImGuiInterface:renderQuickPresets()
         imgui.SameLine();
         if imgui.Button('Pet Phy (COM+BEA)') then self.applyPreset('petphy'); end
         
+        
         if imgui.Button('Pet Acc (COM+DRA)') then self.applyPreset('petacc'); end
         imgui.SameLine();
         if imgui.Button('Pet Nuke (PUP+COM)') then self.applyPreset('petnuke'); end
         
+        
         imgui.Separator();
+        
         
         -- Utility Presets
         imgui.TextColored({ 1.0, 1.0, 0.6, 1.0 }, 'Utility:');
@@ -228,6 +247,7 @@ function ImGuiInterface:renderAdvancedSettings()
         
         imgui.Separator();
         
+        
         -- Ability Usage Settings
         imgui.TextColored({ 0.8, 0.6, 1.0, 1.0 }, 'Ability Usage:');
         
@@ -266,17 +286,21 @@ function ImGuiInterface:renderAdvancedSettings()
         
         imgui.Separator();
         
+        
         -- Random Deal Priority Configuration
         imgui.TextColored({ 1.0, 0.8, 0.4, 1.0 }, 'Random Deal Priority:');
         imgui.SameLine();
         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
         if imgui.IsItemHovered() then
             imgui.SetTooltip('Random Deal Priority Order:\n\nWhen Random Deal triggers, it checks these abilities\nin order from top to bottom (1 to 2 to 3).\n\nThe FIRST ability found on cooldown will be targeted.\nHigher priority abilities are checked first.\n\nExample: If Crooked Cards is #1 and on cooldown,\nRandom Deal attempts to reset it immediately without\nchecking Snake Eye or Fold.');
+            imgui.SetTooltip('Random Deal Priority Order:\n\nWhen Random Deal triggers, it checks these abilities\nin order from top to bottom (1 to 2 to 3).\n\nThe FIRST ability found on cooldown will be targeted.\nHigher priority abilities are checked first.\n\nExample: If Crooked Cards is #1 and on cooldown,\nRandom Deal attempts to reset it immediately without\nchecking Snake Eye or Fold.');
         end
+        
         
         -- Priority list with visual styling and arrow controls
         for i = 1, #self.settings.randomDealPriority do
             local item = self.settings.randomDealPriority[i];
+            
             
             -- Create a visual frame around each item
             imgui.PushStyleColor(ImGuiCol_ChildBg, { 0.15, 0.15, 0.15, 1.0 });
@@ -288,10 +312,12 @@ function ImGuiInterface:renderAdvancedSettings()
                 imgui.PushStyleColor(ImGuiCol_ChildBg, { 0.15, 0.25, 0.35, 1.0 }); -- Dark blue
             end
             
+            
             if imgui.BeginChild('priority_item_' .. i, { 250, 25 }, false, ImGuiWindowFlags_NoScrollbar) then
                 -- Priority number
                 imgui.Text(tostring(i) .. '.');
                 imgui.SameLine();
+                
                 
                 -- Up arrow button (disabled for first item)
                 if i == 1 then
@@ -305,11 +331,14 @@ function ImGuiInterface:renderAdvancedSettings()
                         -- Swap with item above
                         local temp = self.settings.randomDealPriority[i-1];
                         self.settings.randomDealPriority[i-1] = item;
+                        local temp = self.settings.randomDealPriority[i-1];
+                        self.settings.randomDealPriority[i-1] = item;
                         self.settings.randomDealPriority[i] = temp;
                         self.libSettings.save();
                     end
                 end
                 imgui.SameLine();
+                
                 
                 -- Down arrow button (disabled for last item)
                 if i == #self.settings.randomDealPriority then
@@ -323,26 +352,34 @@ function ImGuiInterface:renderAdvancedSettings()
                         -- Swap with item below
                         local temp = self.settings.randomDealPriority[i+1];
                         self.settings.randomDealPriority[i+1] = item;
+                        local temp = self.settings.randomDealPriority[i+1];
+                        self.settings.randomDealPriority[i+1] = item;
                         self.settings.randomDealPriority[i] = temp;
                         self.libSettings.save();
                     end
                 end
                 imgui.SameLine();
                 
+                
                 -- Item name with appropriate text color
                 local textColor = { 1.0, 1.0, 1.0, 1.0 }; -- Bright white
                 if item == 'Crooked Cards' then
                     textColor = { 1.0, 0.8, 1.0, 1.0 }; -- Light purple
+                    textColor = { 1.0, 0.8, 1.0, 1.0 }; -- Light purple
                 elseif item == 'Snake Eye' then
                     textColor = { 1.0, 0.9, 0.5, 1.0 }; -- Light yellow
+                    textColor = { 1.0, 0.9, 0.5, 1.0 }; -- Light yellow
                 elseif item == 'Fold' then
+                    textColor = { 0.5, 0.8, 1.0, 1.0 }; -- Light blue
                     textColor = { 0.5, 0.8, 1.0, 1.0 }; -- Light blue
                 end
                 imgui.TextColored(textColor, item);
                 
+                
                 imgui.EndChild();
             end
             imgui.PopStyleColor(1);
+            
             
             -- Add some spacing between items
             if i < #self.settings.randomDealPriority then
@@ -350,10 +387,13 @@ function ImGuiInterface:renderAdvancedSettings()
             end
         end
         
+        
         imgui.Separator();
+        
         
         -- Advanced Rolling Options
         imgui.TextColored({ 1.0, 0.6, 0.6, 1.0 }, 'Advanced Rolling:');
+        
         
         local gambleValue = { self.settings.gamble };
         if imgui.Checkbox('Gamble Mode (Aggressive Double 11s)', gambleValue) then
@@ -363,6 +403,7 @@ function ImGuiInterface:renderAdvancedSettings()
         imgui.SameLine();
         imgui.TextColored({ 0.7, 0.7, 0.7, 1.0 }, '(?)');
         if imgui.IsItemHovered() then
+            imgui.SetTooltip('Aggressively targets 11 on Roll 1, then exploits bust immunity\nto guarantee 11 on Roll 2. Will fold/reset non-11 rolls.');
             imgui.SetTooltip('Aggressively targets 11 on Roll 1, then exploits bust immunity\nto guarantee 11 on Roll 2. Will fold/reset non-11 rolls.');
         end
         
@@ -418,6 +459,7 @@ end
 -- Render merit abilities section
 function ImGuiInterface:renderMeritAbilities()
     if imgui.CollapsingHeader('Merit Abilities') then 
+    if imgui.CollapsingHeader('Merit Abilities') then 
         imgui.TextColored({ 0.6, 1.0, 1.0, 1.0 }, 'Manual Merit Ability Control:');
         
         local hasSnakeEyeValue = { self.settings.hasSnakeEye };
@@ -458,6 +500,7 @@ function ImGuiInterface:renderStatusDebug()
         end
         imgui.Text('Status: ' .. status);
         
+        
         imgui.Text('Roll 1: ' .. self.rolls[1].value);
         if self.subjob == 17 then
             imgui.Text('Roll 2: DISABLED (Sub COR)');
@@ -465,7 +508,9 @@ function ImGuiInterface:renderStatusDebug()
             imgui.Text('Roll 2: ' .. self.rolls[2].value);
         end
         
+        
         imgui.Separator();
+        
         
         -- Debug Info
         imgui.TextColored({ 1.0, 0.8, 0.6, 1.0 }, 'Debug Information:');
@@ -475,6 +520,7 @@ function ImGuiInterface:renderStatusDebug()
         imgui.Text('Fold Available: ' .. tostring(self.hasFold));
         imgui.Text('Roll Window: ' .. tostring(self.rollWindow or 'None'));
         imgui.Text('Pending Action: ' .. tostring(self.pending));
+        
         
         if imgui.Button('Show Debug in Chat') then
             self.updateJobInfo();
@@ -500,6 +546,7 @@ function ImGuiInterface:renderHelp()
         imgui.Text('/roller menu - Toggle this menu');
         imgui.Text('/roller help - Show all commands');
         
+        
         if imgui.Button('Show Help in Chat') then
             self.message('=== J-Roller Enhanced Commands ===');
             self.message('/roller - Show status');
@@ -507,7 +554,7 @@ function ImGuiInterface:renderHelp()
             self.message('/roller roll1/roll2 <n> - Set roll');
             self.message('/roller <preset> - Apply preset (tp, acc, ws, nuke, pet, etc.)');
             self.message('/roller engaged on/off - Only roll while engaged');
-            self.message('/roller crooked2 on/off - Save Crooked Cards for roll 2 only');
+                         self.message('/roller crooked2 on/off - Save Crooked Cards for roll 2 only');
             self.message('/roller randomdeal on/off - Use Random Deal');
             self.message('/roller partyalert on/off - Alert party before rolling');
             self.message('/roller gamble on/off - Aggressive mode for double 11s');
@@ -517,6 +564,7 @@ function ImGuiInterface:renderHelp()
             self.message('/roller rollwithbust on/off - Allow Roll 2 when busted');
             self.message('/roller smartsnakeeye on/off - Smart Snake Eye optimization');
             self.message('/roller resetpriority - Reset Random Deal priority to default');
+    
     
             self.message('/roller once - Roll both rolls once then stop');
             self.message('/roller snakeeye/fold on/off - Merit ability settings');
@@ -547,6 +595,7 @@ function ImGuiInterface:render()
         self:renderStatusDebug();
         self:renderHelp();
         
+        
         -- Save window position
         local windowPosX, windowPosY = imgui.GetWindowPos();
         if windowPosX ~= self.settings.imguiMenuX or windowPosY ~= self.settings.imguiMenuY then
@@ -558,4 +607,5 @@ function ImGuiInterface:render()
     imgui.End();
 end
 
+return ImGuiInterface; 
 return ImGuiInterface; 
