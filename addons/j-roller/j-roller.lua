@@ -48,6 +48,8 @@ local defaultSettings = T {
     bustimmunity = true,   -- Exploit bust immunity (11 on roll 1) for aggressive roll 2
     safemode = false,      -- Ultra-conservative mode: only double up on rolls 1-5, like subjob COR
     townmode = false,      -- Only roll when not in town/safe zones
+    rollwithbust = true,   -- Allow Roll 2 even when busted (party still benefits)
+    smartsnakeeye = true,  -- Use Snake Eye for end-of-rotation optimization when it will recharge in time
     hasSnakeEye = true,    -- true = enabled, false = disabled
     hasFold = true,        -- true = enabled, false = disabled
     -- ImGui window settings
@@ -123,8 +125,7 @@ local function setOnce(value)
 end
 
 -- Action handlers
-local actionComplete = StateManager.createActionCompleteHandler(rollQ, rollWindow, activeRolls, currentRoll,
-    globalCooldown);
+local actionComplete = StateManager.createActionCompleteHandler(rollQ, rollWindow, activeRolls, currentRoll, globalCooldown);
 local finishRoll = StateManager.createFinishRollHandler(message, lastRoll, rollWindow, rollNum, currentRoll);
 
 -- Initialize rolling strategy
@@ -154,7 +155,7 @@ end
 -- Enhanced roll strategy with state sync
 local function rollStrategy()
     stateManager:updateJobInfo();
-
+    
     -- Sync state with strategy module
     rollingStrategy:updateState({
         mainjob = stateManager.mainjob,
@@ -171,7 +172,7 @@ local function rollStrategy()
         roll2RollTime = roll2RollTime[1],
         recasts = recasts,
     });
-
+    
     -- Execute strategy
     if rollWindow[1] then
         rollingStrategy:executeRollStrategy(finishRoll);
@@ -180,7 +181,7 @@ local function rollStrategy()
         if shouldRoll and once[1] then
             local haveRoll1 = StateManager.hasBuff(rolls[1].value);
             local haveRoll2 = StateManager.hasBuff(rolls[2].value);
-
+            
             if stateManager.subjob == 17 then
                 if haveRoll1 then
                     setOnce(false);
@@ -202,12 +203,12 @@ local function actionTimeout()
     timeout[1] = nil;
 end
 
--- Action execution function
+-- Action execution function  
 local function doNext()
     if rollQ:isEmpty() then
         return;
     end
-
+    
     local recasts = getAbilityRecasts();
     local action = rollQ:peek();
 
@@ -223,7 +224,7 @@ local function doNext()
         -- Special check for Random Deal - only use if there's something useful to reset
         if abilityName == 'Random Deal' then
             local shouldUseRandomDeal = false;
-
+            
             if settings.oldrandomdeal then
                 -- Old mode: Reset Snake Eye/Fold if they're on cooldown
                 local snakeOnCD = stateManager.hasSnakeEye and recasts[197] > 0;
@@ -233,7 +234,7 @@ local function doNext()
                 -- New mode: Reset Crooked Cards if it's on cooldown (we just used it)
                 shouldUseRandomDeal = recasts[96] > 0;
             end
-
+            
             if not shouldUseRandomDeal then
                 -- Skip Random Deal if there's nothing useful to reset
                 rollQ:pop();
@@ -241,7 +242,7 @@ local function doNext()
                 return;
             end
         end
-
+        
         local command = ('/ja "%s" <me>'):format(abilityName);
         message('command: ' .. command);
         AshitaCore:GetChatManager():QueueCommand(-1, command);
@@ -263,17 +264,17 @@ local function mainLoop()
     if (not enabled.value) then
         return;
     end
-
+    
     -- Update job info to ensure we have current job status
     stateManager:updateJobInfo();
-
+    
     -- Wake up if we're enabled but asleep
     if asleep[1] then
         asleep[1] = false;
     end
 
     local now = os.time();
-
+    
     if (now - globalCooldown[1] < 1.5) then
         return;
     end
@@ -424,7 +425,7 @@ end)
 -- ImGui rendering
 local function renderImGuiMenu()
     stateManager:updateJobInfo();
-
+    
     -- Update ImGui state
     imguiInterface:updateState({
         mainjob = stateManager.mainjob,
@@ -436,7 +437,7 @@ local function renderImGuiMenu()
         rollWindow = rollWindow[1],
         pending = pending[1],
     });
-
+    
     imguiInterface:render();
 end
 
